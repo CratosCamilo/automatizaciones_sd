@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/conciliacion.py": {
+      "runtime": "python3.9"
+    }
+  }
+}
