@@ -11,7 +11,7 @@ export default function Layout({ children, title = 'Slendy Automatizaciones' }) 
 
       {/* Barra superior magenta */}
       <header className="sticky top-0 z-50 flex items-center justify-between px-6 h-12"
-              style={{ background: '#D81B7C', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' }}>
+              style={{ background: '#37474F', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' }}>
         <Link href="/" className="text-white font-semibold text-sm tracking-wide hover:opacity-80 transition-opacity">
           SLENDY AUTOMATIZACIONES
         </Link>

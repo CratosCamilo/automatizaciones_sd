@@ -21,8 +21,9 @@ Dashboard de automatizaciones empresariales de uso personal. El tono es **profes
 |--------|-----|-----|
 | `accent-cyan` | `#00C4D4` | CTAs primarios, bordes activos, highlights |
 | `accent-cyan-dim` | `#0097A7` | Botones secundarios, estados intermedios |
-| `accent-magenta` | `#D81B7C` | Barra superior, badges especiales |
+| `accent-magenta` | `#D81B7C` | Badges especiales (ya no se usa en header) |
 | `accent-magenta-dim` | `#AD1457` | Hover de elementos magenta |
+| `header-bg` | `#37474F` | Barra superior (gris azulado frío) |
 
 ### Texto
 | Nombre | Valor | Uso |
@@ -132,7 +133,7 @@ hover / drag-over:
 
 ### Barra superior (header)
 ```
-background:       #D81B7C
+background:       #37474F
 height:           48px
 padding:          0 24px
 display:          flex

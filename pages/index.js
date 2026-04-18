@@ -24,7 +24,7 @@ export default function Dashboard() {
               Hola, Slendy 👋
             </h1>
             <p className="text-secondary mt-1 text-[15px]">
-              ¿Qué querés automatizar hoy?
+              ¿Qué quieres automatizar hoy?
             </p>
 
             {/* Badge contador */}
