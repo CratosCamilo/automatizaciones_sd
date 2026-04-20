@@ -56,7 +56,7 @@ slendy-automatizaciones/
 ### Funciones Python serverless
 - Cada función es autónoma: incluye toda su lógica, no importa de otras funciones.
 - Usan `BaseHTTPRequestHandler` de Python estándar (patrón Vercel).
-- Reciben archivos vía `multipart/form-data` POST.
+- Reciben archivos en base64 dentro de un JSON POST (no multipart).
 - Devuelven el resultado como descarga binaria con headers apropiados.
 - Dependencias en `requirements.txt` en la raíz.
 
@@ -64,6 +64,8 @@ slendy-automatizaciones/
 - Los componentes de UI reutilizables van en `/components/`.
 - Los colores y tokens visuales están definidos en `style.md` e implementados como variables CSS en `globals.css`.
 - Cada página de módulo sigue el mismo patrón: zona de upload → botón procesar → spinner → resultado/descarga.
+- El texto de la UI usa tuteo (no voseo): "sube", "elige", "descarga".
+- Inputs de fecha usan la clase `.date-input` definida en `globals.css` (fondo oscuro, `color-scheme: dark`).
 
 ---
 
@@ -90,9 +92,18 @@ git push origin main  # Vercel detecta el push y despliega automáticamente
 
 ---
 
+## Módulos activos
+
+| # | Nombre | Ruta | Backend |
+|---|--------|------|---------|
+| 1 | Movimientos Bancarios | `/movimientos` | `api/movimientos.py` |
+| 2 | Conciliación DIAN vs Siigo | `/conciliacion` | `api/conciliacion.py` |
+
+---
+
 ## Contexto del negocio
 - **Empresa**: negocio de alimentos (panadería/distribución)
 - **Contabilidad**: usa Siigo como software contable
 - **DIAN**: las facturas electrónicas las consulta en el portal de la DIAN
-- **Banco**: hace conciliación bancaria mensual comparando DIAN vs Siigo
+- **Banco**: hace conciliación bancaria mensual comparando DIAN vs Siigo; también genera reporte semanal de movimientos (Caja Social + Bancolombia)
 - **Proveedor de facturas**: recibe facturas electrónicas de múltiples proveedores con prefijos y folios únicos

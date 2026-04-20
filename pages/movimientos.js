@@ -215,8 +215,8 @@ export default function Movimientos() {
                   {/* Instrucción */}
                   <div className="rounded-lg px-4 py-3 text-xs text-secondary leading-relaxed"
                        style={{ background: 'rgba(0,196,212,0.07)', border: '1px solid rgba(0,196,212,0.15)' }}>
-                    Subí los dos <strong className="text-white">.xlsx</strong> (uno de Caja Social
-                    y uno de Bancolombia) y elegí el rango de fechas de la semana.
+                    Sube los dos <strong className="text-white">.xlsx</strong> (uno de Caja Social
+                    y uno de Bancolombia) y elige el rango de fechas de la semana.
                     El sistema detecta automáticamente cuál es cuál.
                   </div>
 

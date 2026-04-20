@@ -275,8 +275,8 @@ def generar_excel(rows_cs, rows_bc):
 # HANDLER HTTP (Vercel serverless)
 # ─────────────────────────────────────────────────────────────────────────────
 
-MESES = {1:'ENE',2:'FEB',3:'MAR',4:'ABR',5:'MAY',6:'JUN',
-          7:'JUL',8:'AGO',9:'SEP',10:'OCT',11:'NOV',12:'DIC'}
+MESES = {1:'ENERO',2:'FEBRERO',3:'MARZO',4:'ABRIL',5:'MAYO',6:'JUNIO',
+          7:'JULIO',8:'AGOSTO',9:'SEPTIEMBRE',10:'OCTUBRE',11:'NOVIEMBRE',12:'DICIEMBRE'}
 
 
 class handler(BaseHTTPRequestHandler):
@@ -327,8 +327,7 @@ class handler(BaseHTTPRequestHandler):
             output  = generar_excel(rows_cs, rows_bc)
 
             mes = MESES.get(fecha_ini.month, str(fecha_ini.month))
-            filename = (f'MOVIMIENTOS_{fecha_ini.day:02d}_AL_'
-                        f'{fecha_fin.day:02d}_{mes}_{fecha_ini.year}.xlsx')
+            filename = f'SEMANA {fecha_ini.day} AL {fecha_fin.day} {mes} {fecha_ini.year}.xlsx'
 
             self.send_response(200)
             self.send_header('Content-Type',

@@ -160,7 +160,9 @@ El sistema detecta automáticamente cuál archivo es de cada banco por el nombre
 
 ---
 
-### Output: `MOVIMIENTOS_DD_AL_DD_MES_YYYY.xlsx`
+### Output: `SEMANA {D} AL {D} {MES} {AÑO}.xlsx`
+
+Ejemplo: `SEMANA 13 AL 19 ABRIL 2026.xlsx`
 
 #### Estructura — Hoja 1: Caja Social
 
