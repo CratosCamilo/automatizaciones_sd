@@ -106,6 +106,103 @@ Este parámetro es **el único criterio de match**. Fecha y monto no se usan (pu
 
 ---
 
+## Módulo 2 — Movimientos Bancarios
+
+**Ruta web**: `/movimientos`  
+**Función backend**: `api/movimientos.py`  
+**Estado**: ✅ Activo
+
+### ¿Para qué sirve?
+Toma los archivos de movimientos de **Banco Caja Social** y **Bancolombia**, los filtra al rango de fechas indicado y genera un Excel organizado por día (de menor a mayor monto) con el total de cada día. Se usa para el reporte semanal de ingresos.
+
+---
+
+### Inputs
+
+| Archivo | Formato | Origen |
+|---------|---------|--------|
+| Movimientos Caja Social | `.xlsx` | Descargado del portal Banco Caja Social. Hoja: `AccountMovementsExtended`. Incluye días fuera del rango solicitado. |
+| Movimientos Bancolombia | `.xlsx` | Descargado de Tus Cuentas Bancolombia. Hoja: `Hoja 1`. Ya trae el rango exacto. |
+| Fecha inicio | parámetro | Fecha desde (inclusive). Necesaria porque Caja Social bota más días de los pedidos. |
+| Fecha fin | parámetro | Fecha hasta (inclusive). |
+
+El sistema detecta automáticamente cuál archivo es de cada banco por el nombre de la hoja interna.
+
+---
+
+### Lógica de procesamiento
+
+#### Caja Social
+1. Detectar hoja `AccountMovementsExtended`
+2. Saltar filas 1–9 (metadatos del reporte: titular, número de cuenta, etc.)
+3. **Columnas a conservar**: Fecha (col B), Débito (col F), Crédito (col G)
+4. **Columnas que se eliminan**: Descripción, Documento, Oficina, Información Adicional
+5. Parsear los montos de string español (`'9.000,00'`) a entero (`9000`)
+6. **Filtrar por fecha**: conservar solo filas dentro del rango indicado
+7. Eliminar filas donde Débito == 0 y Crédito == 0
+
+#### Bancolombia
+1. Detectar hoja `Hoja 1`; encabezado en fila 1, datos desde fila 2
+2. **Filas que se eliminan**:
+   - `IMPTO GOBIERNO 4X1000` — impuesto automático del banco
+   - `ABONO INTERESES AHORROS` — rendimientos de cuenta corriente
+3. **Filtrar por fecha**: conservar solo filas dentro del rango indicado
+4. Los montos ya vienen como números; se convierten a entero si no tienen decimales
+
+#### Organización por día (ambos bancos)
+1. Agrupar filas por fecha
+2. Dentro de cada día:
+   - **Caja Social**: ordenar ascendente por Crédito (menor a mayor)
+   - **Bancolombia**: negativos (débitos) primero ordenados ascendente, luego positivos ordenados ascendente
+3. Escribir las filas del día
+4. Fila de total al final del día (SUM solo de filas positivas en Bancolombia)
+5. Espacio vacío entre días: 4 filas tras el primero, 3 tras los demás, 0 al final
+
+---
+
+### Output: `MOVIMIENTOS_DD_AL_DD_MES_YYYY.xlsx`
+
+#### Estructura — Hoja 1: Caja Social
+
+| Columna | Contenido |
+|---------|-----------|
+| A | Fecha (`DD/MM/YYYY`) |
+| B–D | Vacías (espaciado visual) |
+| E | Débito (si aplica) |
+| F | Crédito |
+
+- Fila total: columna F, fórmula `=SUM(F_inicio:F_fin)`, negrita, tamaño 20
+- Sin colores de fondo en filas de datos
+
+#### Estructura — Hoja 2: Bancolombia
+
+| Columna | Contenido |
+|---------|-----------|
+| A | Fecha (`mm-dd-yy`) |
+| B | Descripción |
+| C | Referencia |
+| D | Valor (positivo = crédito, negativo = débito) |
+
+- Encabezado: negrita, fondo `#F2F2F4`, alineación centrada
+- Fila total: columna D, fórmula que **excluye las filas negativas** del SUM, negrita, tamaño 20
+- Los débitos van antes de los positivos en cada día pero no se incluyen en el total
+
+#### Formato general
+- Fuente: Trebuchet MS, tamaño 12
+- Totales: Trebuchet MS, tamaño 20, negrita
+- Columnas monetarias: formato contable `_-* #,##0.00_-;...`
+
+---
+
+### Notas y excepciones conocidas
+- Caja Social puede exportar rangos más amplios que los pedidos; la fecha de corte se aplica siempre.
+- Si ambos archivos son detectados como el mismo banco, la función devuelve un error descriptivo.
+- Las filas `DS-xxx` de Caja Social no aparecen en este reporte (son devoluciones de otros módulos).
+
+---
+
+---
+
 ## Cómo añadir un módulo nuevo
 
 1. Añadir una sección a este archivo con la misma estructura:

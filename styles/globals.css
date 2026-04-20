@@ -72,6 +72,25 @@
     @apply flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium;
   }
 
+  /* ── Date input ─────────────────────────────────────── */
+  .date-input {
+    width: 100%;
+    background: rgba(0, 96, 112, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: white;
+    padding: 9px 12px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color-scheme: dark;
+    outline: none;
+    transition: border-color 200ms;
+  }
+
+  .date-input:focus {
+    border-color: #00C4D4;
+  }
+
   /* ── Module card ─────────────────────────────────────── */
   .module-card {
     @apply relative flex flex-col gap-2 rounded-xl p-6 cursor-pointer

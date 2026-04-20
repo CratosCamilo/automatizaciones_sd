@@ -3,13 +3,19 @@ import ModuleCard from '../components/ModuleCard'
 
 const MODULOS = [
   {
+    id: 'movimientos',
+    href: '/movimientos',
+    icon: '🏦',
+    nombre: 'Movimientos Bancarios',
+    descripcion: 'Organiza los movimientos de Caja Social y Bancolombia por día y semana.',
+  },
+  {
     id: 'conciliacion',
     href: '/conciliacion',
     icon: '🧾',
     nombre: 'Conciliación DIAN vs Siigo',
     descripcion: 'Cruza las facturas de la DIAN con Siigo e identifica las que faltan.',
   },
-  // Aquí van los próximos módulos
 ]
 
 export default function Dashboard() {
