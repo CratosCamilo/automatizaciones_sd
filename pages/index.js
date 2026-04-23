@@ -16,6 +16,13 @@ const MODULOS = [
     nombre: 'Conciliación DIAN vs Siigo',
     descripcion: 'Cruza las facturas de la DIAN con Siigo e identifica las que faltan.',
   },
+  {
+    id: 'davivienda',
+    href: '/davivienda',
+    icon: '💳',
+    nombre: 'Davivienda + Redeban',
+    descripcion: 'Cruza los QR de Davivienda con Redeban y arma el reporte quincenal.',
+  },
 ]
 
 export default function Dashboard() {

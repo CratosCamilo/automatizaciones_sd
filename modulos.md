@@ -205,6 +205,105 @@ Ejemplo: `SEMANA 13 AL 19 ABRIL 2026.xlsx`
 
 ---
 
+## Módulo 3 — Davivienda + Redeban QR
+
+**Ruta web**: `/davivienda`
+**Función backend**: `api/davivienda.py`
+**Estado**: ✅ Activo
+
+### ¿Para qué sirve?
+Arma la conciliación quincenal (1–15 o 16–último del mes) del banco Davivienda del papá de Slendy, por donde entran los pagos QR de los carros y algunos pagos de PAES.
+
+Davivienda es incómodo porque:
+1. No deja seleccionar rango de fecha al descargar (trae días de más).
+2. No dice los nombres de las personas que consignan por QR (aparece solo como "Pago A Llave De Comercio").
+
+El CSV de Redeban QR complementa el banco con los nombres (enmascarados, ej. `JUL*** ALE*** ROD***`). Este módulo cruza ambos archivos por fecha+valor y devuelve el Excel quincenal listo.
+
+---
+
+### Inputs
+
+| Archivo | Formato | Origen |
+|---------|---------|--------|
+| Reporte Davivienda | `.xlsx` | Descargado del portal de Davivienda. Hoja única con 10 columnas. |
+| Consulta Redeban | `.csv` | Exportado del portal Redeban QR. Delimitador `;`. |
+| Fecha inicio | parámetro | Inclusive (normalmente día 1 o 16). |
+| Fecha fin | parámetro | Inclusive (normalmente día 15 o último del mes). |
+
+---
+
+### Lógica de procesamiento
+
+#### Davivienda
+1. Leer la hoja activa (encabezado en fila 1).
+2. **Columnas que se conservan**: `Fecha de Sistema`, `Descripción motivo`, `Transacción`, `Valor Total`.
+3. **Columnas que se eliminan**: Documento, Oficina de Recaudo, ID Origen/Destino, Valor Cheque, Referencia 1, Referencia 2.
+4. Parsear `Valor Total` desde string español (`"$ 1.807,00"` → `1807`); se deja como `int` si es entero o con 2 decimales si no.
+5. **Filtrar por fecha**: conservar solo filas dentro del rango.
+6. Filas con `Valor Total` vacío o 0 se descartan.
+
+#### Redeban (CSV)
+1. Delimitador `;`, codificación UTF-8 (fallback latin-1).
+2. **Filtrar `Estado == ACEPTADA`** (las rechazadas se descartan).
+3. **Columnas que se usan**: `Emisor`, `Valor`, `Fecha`.
+4. `Fecha` viene como `"2026-04-15 16:56:00.0"` — se queda solo con los primeros 10 caracteres (YYYY-MM-DD).
+5. `Valor` viene como float con punto decimal (`"300000.00"`); se normaliza igual que en Davivienda.
+6. **Filtrar por fecha**: conservar solo filas dentro del rango.
+
+#### Cruce
+- **Clave**: `(fecha, valor)` expresada como `(date, int_centavos)`.
+- Para cada fila de Davivienda cuya `Descripción motivo.strip() == "Pago A Llave De Comercio"`, se busca una entrada de Redeban que matchee la clave. Si hay match, la descripción se reemplaza por el `Emisor` del CSV.
+- Si hay varias entradas de Redeban con la misma clave, se asignan en orden (stable).
+- Las filas sin match conservan el texto original.
+
+---
+
+### Output: `SEMANA {D} AL {D} {MES} {AÑO}.xlsx`
+
+Ejemplo: `SEMANA 1 AL 15 ABRIL 2026.xlsx`.
+
+#### Hoja única: `Movimientos1`
+
+| Columna | Contenido | Ancho |
+|---------|-----------|-------|
+| A | Fecha de Sistema (`DD/MM/YYYY` como texto) | 13.28 |
+| B | Descripción motivo (ya con nombre cuando aplica) | 73.43 |
+| C | Transacción (`Nota Débito` / `Nota Crédito`) | 15.57 |
+| D | Valor Total | 20.14 |
+
+#### Orden de filas
+1. `Fecha` ascendente.
+2. `Valor Total` ascendente dentro de cada día.
+3. Desempate: `Descripción` descendente (Z→A), para que nombres (C***, U***) vayan antes que `Abono ACH…` cuando coinciden fecha y valor.
+
+#### Formato
+- Fuente: **Trebuchet MS**, tamaño 12.
+- Encabezado fila 1: negrilla, fondo gris `#B2AEAE`.
+- **Notas Débito** (salidas): toda la fila en rojo `#FF0000`. Notas Crédito en negro (default).
+- Columna D con formato contable `_-* #,##0.00_-;...`.
+
+---
+
+### Headers devueltos al frontend
+```
+X-Total-Rows: total de filas escritas
+X-Matched:    Pago A Llave matcheados con Redeban
+X-Unmatched:  Pago A Llave sin match (debería ser 0)
+X-Extras:     entradas de Redeban sin match en Davivienda (debería ser 0)
+```
+
+---
+
+### Notas y excepciones conocidas
+- Si `X-Unmatched > 0` o `X-Extras > 0`, hay un desfase entre banco y Redeban — el UI muestra una advertencia amarilla.
+- Davivienda descarga rangos más amplios que los pedidos; el filtro de fecha siempre se aplica.
+- Rechazadas en Redeban se descartan automáticamente (no se consideran ingresos).
+
+---
+
+---
+
 ## Cómo añadir un módulo nuevo
 
 1. Añadir una sección a este archivo con la misma estructura:
