@@ -23,6 +23,13 @@ const MODULOS = [
     nombre: 'Davivienda + Redeban',
     descripcion: 'Cruza los QR de Davivienda con Redeban y arma el reporte quincenal.',
   },
+  {
+    id: 'cta-ahorros',
+    href: '/cta-ahorros',
+    icon: '💰',
+    nombre: 'Cta Ahorros Caja Social',
+    descripcion: 'Concilia la cuenta de ahorros de Caja Social con Siigo por débitos y créditos.',
+  },
 ]
 
 export default function Dashboard() {

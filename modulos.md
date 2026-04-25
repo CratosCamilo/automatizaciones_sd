@@ -304,6 +304,131 @@ X-Extras:     entradas de Redeban sin match en Davivienda (debería ser 0)
 
 ---
 
+---
+
+## Módulo 4 — Cta Ahorros Caja Social
+
+**Ruta web**: `/cta-ahorros`  
+**Función backend**: `api/cta_ahorros.py`  
+**Estado**: ✅ Activo
+
+### ¿Para qué sirve?
+Concilia la cuenta de ahorros de Caja Social con Siigo. Genera tres hojas:
+- **Hoja1**: extracto bancario limpio con todos los movimientos del período.
+- **DEBITO**: compara los débitos de Siigo contra los totales diarios del banco.
+- **CREDITO**: cruza los créditos de Siigo (abonos) contra los ingresos del banco por valor, detectando los que cuadran y los que sobran.
+
+---
+
+### Inputs
+
+| Archivo | Formato | Origen |
+|---------|---------|--------|
+| Extracto Caja Social | `.xls` | Descargado del portal Banco Caja Social. **Formato interno SYLK PWXL** (no es XLS real). |
+| Reporte Siigo | `.xlsx` | Exportado desde Siigo. Encabezado dinámico (primera fila con "Código contable" en col C). |
+| Fecha inicio | parámetro | Inclusive. |
+| Fecha fin | parámetro | Inclusive. |
+
+---
+
+### Lógica de procesamiento
+
+#### Banco (SYLK PWXL)
+1. El archivo `.xls` tiene cabecera `ID;PWXL;N;E` — se parsea manualmente línea a línea.
+2. Las líneas `C;` definen valores de celda; las líneas `F;` actualizan el puntero de columna (cur_col) sin escribir valor.
+3. **Columnas usadas**: col 2 = Fecha Transacción, col 3 = Descripción, col 4 = Valor, col 7 = Tipo Transacción.
+4. Se descartan filas con descripción `SALDO INICIAL` o `SALDO FINAL`.
+5. Se filtra por rango de fechas.
+6. Filas positivas (Valor > 0) → `positivos_banco`.
+7. Filas negativas (Valor < 0) → `negativos_banco`, excluyendo los **tipos impuesto**:
+   - N005 (RETEFUENTE), N328 (RETEICA), N023 (ND COMISION ADQUIRENCIA), N467 (DESC COMISION T-DEB), N001 (GRAVAMEN MOVS FINANCIEROS).
+
+#### Siigo (XLSX)
+1. Detectar dinámicamente la fila de encabezado: primera fila donde col C == `"Comprobante"`.
+2. Datos desde la fila siguiente.
+3. Se omiten filas con comprobante vacío, que comiencen por `"Total"` o `"Cuenta contable"` (son subtotales y metadatos).
+4. **Débitos** (`Débito > 0`): comprobantes CC-13-xxx, TD-xxx, RC-xxx, etc. → `siigo_debitos`.
+5. **Créditos** (`Crédito > 0`): comprobantes RP-xxx, CC-10-xx, etc. → `siigo_creditos`.
+   - Los CC-10-xx son "notas de ajuste" y reciben tratamiento especial (ver CREDITO).
+
+#### Match CREDITO (cruce por valor)
+1. Se construye un pool de entradas bancarias negativas (valores absolutos).
+2. Los créditos Siigo se ordenan por monto descendente.
+3. Para cada crédito Siigo, se busca un banco con el mismo valor absoluto:
+   - Si hay match: genera fila en CREDITO (con datos del banco a la izquierda, Siigo a la derecha).
+   - Si **no hay match y es CC-10**: se **descarta silenciosamente** (su contrapartida bancaria fue excluida como impuesto).
+   - Si no hay match y es otro comprobante: genera fila solo-Siigo (sin banco).
+4. Los bancos sin match (banco_only) se insertan por valor en la lista final (merge-sort descendente).
+
+---
+
+### Output: `CTA AHORROS {MES} {AÑO}.xlsx`
+
+Ejemplo: `CTA AHORROS MARZO 2026.xlsx`
+
+#### Hoja 1: `Hoja1` — Extracto bancario
+
+| Columna | Contenido |
+|---------|-----------|
+| A | Fecha Transacción |
+| B | Descripción |
+| C | Valor |
+| D | Tipo Transacción |
+
+Filas ordenadas por fecha ascendente, luego por valor absoluto descendente.
+
+#### Hoja 2: `DEBITO` — Comparación Siigo débitos vs banco
+
+| Bloque | Columnas | Contenido |
+|--------|----------|-----------|
+| Siigo | A–C | Comprobante, Fecha elaboración, Monto Siigo |
+| Banco | E–H | Fecha, Total banco día, Total Siigo día, Diferencia (banco - siigo) |
+
+- Columnas E–H agrupan movimientos por día: el banco suma todos los negativos del día (excluyendo impuestos), Siigo suma los débitos del mismo día.
+- La diferencia indica si hay movimientos bancarios no registrados en Siigo o viceversa.
+
+#### Hoja 3: `CREDITO` — Cruce de créditos por valor
+
+| Columna | Contenido |
+|---------|-----------|
+| A | Fecha Transacción (banco) |
+| B | Descripción (banco) |
+| C | Valor banco (negativo) |
+| D | Diferencia (= C + E) — vacía si solo banco o solo Siigo |
+| E | Crédito Siigo |
+| F | Comprobante Siigo |
+| G | Fecha Siigo |
+
+- Filas CC-10 con match: fondo **amarillo** (`FFFF00`).
+- Filas banco_only (sin Siigo): solo columnas A–C.
+- Filas siigo_only (sin banco): solo columnas E–G.
+- Orden: merge-sort por valor descendente entre siigo_rows y banco_only.
+
+#### Formato general
+- Fuente: Trebuchet MS, tamaño 12.
+- Números: formato `#,##0.00`.
+- Encabezados: negrilla.
+
+#### Resumen devuelto al frontend
+```
+banco_positivos:  N entradas positivas del banco
+banco_negativos:  N entradas negativas (excl. impuestos)
+siigo_debitos:    N débitos Siigo
+siigo_creditos:   N créditos Siigo (excl. CC-10 sin match)
+```
+
+---
+
+### Notas y excepciones conocidas
+- El archivo `.xls` de Caja Social no es XLS real — es formato SYLK PWXL. Se parsea manualmente.
+- Las líneas `F;` en SYLK también actualizan el puntero de columna; ignorarlas causaría que los valores queden en la columna equivocada.
+- Los tipos de impuesto (N005, N328, N023, N467, N001) se excluyen de los negativos y por eso sus CC-10 correspondientes en Siigo tampoco aparecen en CREDITO.
+- Si un CC-10 de Siigo no tiene contrapartida bancaria con el mismo valor, se descarta (no se muestra en ninguna hoja del output).
+
+---
+
+---
+
 ## Cómo añadir un módulo nuevo
 
 1. Añadir una sección a este archivo con la misma estructura:
