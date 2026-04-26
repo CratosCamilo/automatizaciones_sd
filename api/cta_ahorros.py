@@ -184,7 +184,6 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
     C_RED     = "FFFFEBEE"   # rosa pastel
     C_HEADER  = "FF4472C4"   # azul encabezado (igual que DIAN)
     C_GRAY    = "FFD3D3D3"   # encabezado Hoja1
-    C_GRAY_BR = "FFB2B2B2"   # borde imptos
 
     def font(bold=False, color="FF000000"):
         return Font(name=FONT, size=SZ, bold=bold, color=color)
@@ -195,10 +194,6 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
     # Borde default de Excel (thin negro) — igual para todas las celdas de CREDITO
     _side = Side(style="thin", color="FF000000")
     CRED_BORDER = Border(left=_side, right=_side, top=_side, bottom=_side)
-
-    def border(hex8):
-        s = Side(style="thin", color=hex8)
-        return Border(left=s, right=s, top=s, bottom=s)
 
     def center():
         return Alignment(horizontal="center")
@@ -385,7 +380,6 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
                     if row[1] == desc and isinstance(row[2], (int, float)))
         imptos_sums[desc] = round(total, 2)
 
-    gray_br = border(C_GRAY_BR)
     last_data_row = len(all_cred_rows) + 1   # +1 por encabezado
     imptos_start  = last_data_row + 2         # +1 fila en blanco + 1
 
@@ -393,20 +387,16 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
         r = imptos_start + i
         val = imptos_sums[desc]
 
-        # Col A: vacía con borde
-        ws3.cell(r, 1).border = gray_br
+        ws3.cell(r, 1).border = CRED_BORDER
 
-        # Col B: descripción
         cb = ws3.cell(r, 2, desc)
-        cb.font = font(); cb.border = gray_br
+        cb.font = font(); cb.border = CRED_BORDER
 
-        # Col C: valor (negativo)
         cc = ws3.cell(r, 3, val)
-        cc.font = font(); cc.number_format = FMT; cc.border = gray_br
+        cc.font = font(); cc.number_format = FMT; cc.border = CRED_BORDER
 
-        # Cols D-G: vacías con borde
         for c in range(4, 8):
-            ws3.cell(r, c).border = gray_br
+            ws3.cell(r, c).border = CRED_BORDER
 
     # ── Nombre de archivo ─────────────────────────────────────────────────────
     meses = {1:"ENERO",2:"FEBRERO",3:"MARZO",4:"ABRIL",5:"MAYO",6:"JUNIO",
