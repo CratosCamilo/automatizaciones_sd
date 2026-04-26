@@ -179,18 +179,22 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
     FMT   = '#,##0.00'
 
     # Paleta pastel — mismas tonalidades, más suaves
-    C_GREEN   = "FFE8F5E9"; C_GREEN_B   = "FF388E3C"   # menta pastel / verde oscuro
-    C_YELLOW  = "FFFFFCCC"; C_YELLOW_B  = "FFF57F17"   # crema-limón / ámbar oscuro
-    C_RED     = "FFFFEBEE"; C_RED_B     = "FFC62828"   # rosa pastel / rojo oscuro
-    C_HEADER  = "FF4472C4"                             # azul encabezado (igual que DIAN)
-    C_GRAY    = "FFD3D3D3"                             # encabezado Hoja1
-    C_GRAY_BR = "FFB2B2B2"                             # borde imptos
+    C_GREEN   = "FFE8F5E9"   # menta pastel
+    C_YELLOW  = "FFFFFCCC"   # crema-limón
+    C_RED     = "FFFFEBEE"   # rosa pastel
+    C_HEADER  = "FF4472C4"   # azul encabezado (igual que DIAN)
+    C_GRAY    = "FFD3D3D3"   # encabezado Hoja1
+    C_GRAY_BR = "FFB2B2B2"   # borde imptos
 
     def font(bold=False, color="FF000000"):
         return Font(name=FONT, size=SZ, bold=bold, color=color)
 
     def fill(hex8):
         return PatternFill("solid", fgColor=hex8)
+
+    # Borde default de Excel (thin negro) — igual para todas las celdas de CREDITO
+    _side = Side(style="thin", color="FF000000")
+    CRED_BORDER = Border(left=_side, right=_side, top=_side, bottom=_side)
 
     def border(hex8):
         s = Side(style="thin", color=hex8)
@@ -340,17 +344,17 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
     for row_num, (row_type, rd) in enumerate(all_cred_rows, 2):
         tipo = rd["tipo"]
         if tipo == "match":
-            fc, bc = C_GREEN, C_GREEN_B
+            fc = C_GREEN
         elif tipo in ("cc10_match", "siigo_only"):
-            fc, bc = C_YELLOW, C_YELLOW_B
+            fc = C_YELLOW
         else:
-            fc, bc = C_RED, C_RED_B
+            fc = C_RED
 
-        fl = fill(fc); br = border(bc)
+        fl = fill(fc)
 
         def wc(col, val, fmt=None):
             cell = ws3.cell(row_num, col, val)
-            cell.font = font(); cell.fill = fl; cell.border = br
+            cell.font = font(); cell.fill = fl; cell.border = CRED_BORDER
             if fmt: cell.number_format = fmt
             return cell
 
@@ -364,14 +368,14 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
 
         elif tipo == "siigo_only":
             for c in range(1, 5):
-                cell = ws3.cell(row_num, c); cell.fill = fl; cell.border = br
+                cell = ws3.cell(row_num, c); cell.fill = fl; cell.border = CRED_BORDER
             wc(5, rd["siigo_val"], FMT); wc(6, rd["comp"]); wc(7, rd["siigo_fecha"])
 
         else:  # banco_only
             wc(1, rd["banco_fecha"]); wc(2, rd["banco_desc"])
             wc(3, -rd["sort_val"], FMT)
             for c in range(4, 8):
-                cell = ws3.cell(row_num, c); cell.fill = fl; cell.border = br
+                cell = ws3.cell(row_num, c); cell.fill = fl; cell.border = CRED_BORDER
 
     # ── Sección de impuestos al final de CREDITO ──────────────────────────────
     # Suma de Hoja1 col Valor (idx 2) agrupada por descripción (idx 1)
