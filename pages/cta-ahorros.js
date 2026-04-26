@@ -91,6 +91,27 @@ function ModalComoFunciona({ onClose }) {
   )
 }
 
+function fmtCOP(n) {
+  if (n === null || n === undefined) return '—'
+  return Math.abs(n).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+}
+
+function TotalesRow({ label, value, sep, diff, highlight }) {
+  const textColor = highlight ? '#EF5350' : diff && Math.abs(value) < 1 ? '#66BB6A' : '#FFFFFF'
+  return (
+    <div className="flex items-center justify-between px-4 py-2.5 text-sm"
+         style={{
+           background: sep ? 'rgba(255,255,255,0.04)' : 'transparent',
+           borderTop: sep ? '1px solid rgba(255,255,255,0.06)' : 'none',
+         }}>
+      <span className="text-secondary text-xs">{label}</span>
+      <span className="font-semibold tabular-nums" style={{ color: textColor }}>
+        {diff && value < 0 ? '-' : ''}{fmtCOP(value)}
+      </span>
+    </div>
+  )
+}
+
 const toBase64 = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -313,30 +334,33 @@ export default function CtaAhorros() {
                     <p className="text-white font-semibold">¡Listo! El archivo se descargó automáticamente.</p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="result-pill flex-col items-start"
-                         style={{ background: 'rgba(0,196,212,0.1)', border: '1px solid rgba(0,196,212,0.25)' }}>
-                      <span className="text-lg">🏦</span>
-                      <span className="text-white font-bold text-xl leading-none">{resultado.banco_positivos}</span>
-                      <span className="text-white/60 text-[11px] leading-tight">Entradas banco</span>
+                  {/* Felicitación si concilió */}
+                  {resultado.conciliado && (
+                    <div className="rounded-xl px-4 py-3 text-sm text-center"
+                         style={{ background: 'rgba(102,187,106,0.15)', border: '1px solid rgba(102,187,106,0.4)' }}>
+                      <p className="text-[#66BB6A] font-semibold">¡Conciliación perfecta! Ambas diferencias son cero. 🎉</p>
                     </div>
-                    <div className="result-pill flex-col items-start"
-                         style={{ background: 'rgba(0,196,212,0.1)', border: '1px solid rgba(0,196,212,0.25)' }}>
-                      <span className="text-lg">📤</span>
-                      <span className="text-white font-bold text-xl leading-none">{resultado.banco_negativos}</span>
-                      <span className="text-white/60 text-[11px] leading-tight">Salidas banco</span>
+                  )}
+
+                  {/* Bloque DÉBITO */}
+                  <div>
+                    <p className="text-secondary text-[11px] uppercase tracking-widest font-medium mb-2">Débito</p>
+                    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <TotalesRow label="Total banco"  value={resultado.total_deb_banco}  />
+                      <TotalesRow label="Total Siigo"  value={resultado.total_deb_siigo}  sep />
+                      <TotalesRow label="Diferencia"   value={resultado.diff_deb}
+                                  diff highlight={Math.abs(resultado.diff_deb) > 1} />
                     </div>
-                    <div className="result-pill flex-col items-start"
-                         style={{ background: 'rgba(102,187,106,0.12)', border: '1px solid rgba(102,187,106,0.3)' }}>
-                      <span className="text-lg">📥</span>
-                      <span className="text-white font-bold text-xl leading-none">{resultado.siigo_debitos}</span>
-                      <span className="text-white/60 text-[11px] leading-tight">Débitos Siigo</span>
-                    </div>
-                    <div className="result-pill flex-col items-start"
-                         style={{ background: 'rgba(102,187,106,0.12)', border: '1px solid rgba(102,187,106,0.3)' }}>
-                      <span className="text-lg">📋</span>
-                      <span className="text-white font-bold text-xl leading-none">{resultado.siigo_creditos}</span>
-                      <span className="text-white/60 text-[11px] leading-tight">Créditos Siigo</span>
+                  </div>
+
+                  {/* Bloque CRÉDITO */}
+                  <div>
+                    <p className="text-secondary text-[11px] uppercase tracking-widest font-medium mb-2">Crédito</p>
+                    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <TotalesRow label="Total banco"  value={resultado.total_cred_banco}  />
+                      <TotalesRow label="Total Siigo"  value={resultado.total_cred_siigo}  sep />
+                      <TotalesRow label="Diferencia"   value={resultado.diff_cred}
+                                  diff highlight={Math.abs(resultado.diff_cred) > 1} />
                     </div>
                   </div>
 
