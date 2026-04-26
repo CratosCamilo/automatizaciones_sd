@@ -5,6 +5,15 @@ from collections import defaultdict
 
 TIPOS_EXCLUIDOS = {"N005", "N328", "N023", "N467", "N001"}
 
+# Descripciones de impuestos — mismo orden en que se muestran al final de CREDITO
+IMPTOS_DESCS = [
+    "DESC COMISION POR VENTAS T-DEB",
+    "GRAVAMEN MOVS FINANCIEROS",
+    "ND COMISION ADQUIRENCIA TC",
+    "RETEFUENTE VTAS TARCREDIT",
+    "NOTA DEBITO RETEICA",
+]
+
 # ── DETECCIÓN DE FORMATO ──────────────────────────────────────────────────────
 def es_sylk(data: bytes) -> bool:
     return data[:20].startswith(b"ID;PWXL") or data[:4].startswith(b"ID;P")
@@ -169,21 +178,22 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
     SZ    = 12
     FMT   = '#,##0.00'
 
-    # Paleta igual que módulo DIAN vs Siigo
-    C_GREEN   = "FFEBF1DE"; C_GREEN_B   = "FF538135"
-    C_YELLOW  = "FFFFFF00"; C_YELLOW_B  = "FFBF8F00"
-    C_RED     = "FFF2DCDB"; C_RED_B     = "FFC00000"
-    C_HEADER  = "FF4472C4"
-    C_GRAY    = "FFD3D3D3"
+    # Paleta pastel — mismas tonalidades, más suaves
+    C_GREEN   = "FFE8F5E9"; C_GREEN_B   = "FF388E3C"   # menta pastel / verde oscuro
+    C_YELLOW  = "FFFFFCCC"; C_YELLOW_B  = "FFF57F17"   # crema-limón / ámbar oscuro
+    C_RED     = "FFFFEBEE"; C_RED_B     = "FFC62828"   # rosa pastel / rojo oscuro
+    C_HEADER  = "FF4472C4"                             # azul encabezado (igual que DIAN)
+    C_GRAY    = "FFD3D3D3"                             # encabezado Hoja1
+    C_GRAY_BR = "FFB2B2B2"                             # borde imptos
 
     def font(bold=False, color="FF000000"):
         return Font(name=FONT, size=SZ, bold=bold, color=color)
 
-    def fill(hex6):
-        return PatternFill("solid", fgColor=hex6)
+    def fill(hex8):
+        return PatternFill("solid", fgColor=hex8)
 
-    def border(hex6):
-        s = Side(style="thin", color=hex6)
+    def border(hex8):
+        s = Side(style="thin", color=hex8)
         return Border(left=s, right=s, top=s, bottom=s)
 
     def center():
@@ -192,7 +202,7 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
     wb = openpyxl.Workbook()
 
     # ══════════════════════════════════════════════════════════
-    # HOJA 1  — extracto bancario completo (9 columnas, sin Fecha Saldo)
+    # HOJA 1 — extracto bancario completo (9 columnas)
     # ══════════════════════════════════════════════════════════
     ws1 = wb.active
     ws1.title = "Hoja1"
@@ -205,8 +215,7 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
 
     ws1.auto_filter.ref = f"A1:{ws1.cell(1, len(banco_raw_headers)).column_letter}1"
 
-    col_widths = [14, 38, 14, 16, 14, 14, 28, 20, 40]
-    for i, w in enumerate(col_widths, 1):
+    for i, w in enumerate([14, 38, 14, 16, 14, 14, 28, 20, 40], 1):
         ws1.column_dimensions[ws1.cell(1, i).column_letter].width = w
 
     for r, row_data in enumerate(banco_raw_rows, 2):
@@ -217,7 +226,7 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
             if c == 4: cell.number_format = FMT
 
     # ══════════════════════════════════════════════════════════
-    # DEBITO  — A‑C Siigo | D sep | E Fecha | F Banco | G Diferencia | H Siigo
+    # DEBITO — A-C Siigo | D sep | E Fecha | F Banco | G Diferencia | H Siigo
     # ══════════════════════════════════════════════════════════
     ws2 = wb.create_sheet("DEBITO")
 
@@ -240,11 +249,9 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
     for r, (comp, fecha_str, monto) in enumerate(siigo_deb_sorted, 2):
         ws2.cell(r, 1, comp).font = font()
         ws2.cell(r, 2, fecha_str).font = font()
-        c3 = ws2.cell(r, 3, monto)
-        c3.font = font()
-        c3.number_format = FMT
+        c3 = ws2.cell(r, 3, monto); c3.font = font(); c3.number_format = FMT
 
-    banco_por_fecha  = defaultdict(float)
+    banco_por_fecha = defaultdict(float)
     for fs, _, val in positivos_banco:
         f = parse_fecha(fs)
         if f: banco_por_fecha[f] += val
@@ -261,7 +268,6 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
         diff      = banco_sum - siigo_sum
 
         ws2.cell(r, 5, f.strftime("%d/%m/%Y")).font = font()
-
         c6 = ws2.cell(r, 6, banco_sum); c6.font = font(); c6.number_format = FMT
 
         diff_val   = diff if abs(diff) > 0.01 else 0.0
@@ -270,18 +276,14 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
 
         c8 = ws2.cell(r, 8, siigo_sum); c8.font = font(); c8.number_format = FMT
 
-    # Total fila al final de columna G (Diferencia)
     if all_dates:
-        last_data_row = len(all_dates) + 1
-        total_row     = last_data_row + 1
-        total_diff    = round(sum(banco_por_fecha.get(f,0)-siigo_por_fecha.get(f,0) for f in all_dates), 2)
-        ct = ws2.cell(total_row, 7, total_diff)
-        ct.font = font(bold=True)
-        ct.number_format = FMT
+        total_diff = round(sum(banco_por_fecha.get(f,0)-siigo_por_fecha.get(f,0) for f in all_dates), 2)
+        ct = ws2.cell(len(all_dates) + 2, 7, total_diff)
+        ct.font = font(bold=True); ct.number_format = FMT
 
     # ══════════════════════════════════════════════════════════
-    # CREDITO  — orden: VERDE → AMARILLO → ROJO, luego por valor desc
-    # Bordes del mismo color de la celda pero más oscuro
+    # CREDITO — Verde → Amarillo → Rojo, por valor desc dentro de cada grupo
+    # Al final: fila en blanco + 5 filas de impuestos (suma de Hoja1)
     # ══════════════════════════════════════════════════════════
     ws3 = wb.create_sheet("CREDITO")
 
@@ -295,7 +297,7 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
     for col, w in {"A":18,"B":38,"C":16,"D":16,"E":16,"F":16,"G":18}.items():
         ws3.column_dimensions[col].width = w
 
-    # Construir pool de negativos banco
+    # Pool de negativos banco
     banco_pool = defaultdict(list)
     for fecha_str, desc, val_abs, tipo in negativos_banco:
         banco_pool[round(val_abs, 2)].append((fecha_str, desc))
@@ -312,25 +314,19 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
                       banco_fecha=banco_fecha, banco_desc=banco_desc,
                       banco_val=-siigo_val, siigo_val=siigo_val,
                       comp=comp, siigo_fecha=siigo_fecha)
-            if es_cc10:
-                amarillo_rows.append(rd)
-            else:
-                verde_rows.append(rd)
+            (amarillo_rows if es_cc10 else verde_rows).append(rd)
         else:
-            # Sin match (incluyendo CC-10 sin match) → amarillo
             amarillo_rows.append(dict(sort_val=siigo_val, tipo="siigo_only",
                                       banco_fecha="", banco_desc="",
                                       banco_val=0, siigo_val=siigo_val,
                                       comp=comp, siigo_fecha=siigo_fecha))
 
-    # Banco sin match → rojo
     rojo_rows = []
     for key, entries in banco_pool.items():
         for fecha_str, desc in entries:
             rojo_rows.append(dict(sort_val=key, tipo="banco_only",
                                   banco_fecha=fecha_str, banco_desc=desc))
 
-    # Ordenar cada grupo por valor desc
     verde_rows.sort(key=lambda x: -x["sort_val"])
     amarillo_rows.sort(key=lambda x: -x["sort_val"])
     rojo_rows.sort(key=lambda x: -x["sort_val"])
@@ -343,7 +339,6 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
 
     for row_num, (row_type, rd) in enumerate(all_cred_rows, 2):
         tipo = rd["tipo"]
-
         if tipo == "match":
             fc, bc = C_GREEN, C_GREEN_B
         elif tipo in ("cc10_match", "siigo_only"):
@@ -351,42 +346,63 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
         else:
             fc, bc = C_RED, C_RED_B
 
-        fl = fill(fc)
-        br = border(bc)
+        fl = fill(fc); br = border(bc)
 
         def wc(col, val, fmt=None):
             cell = ws3.cell(row_num, col, val)
-            cell.font   = font()
-            cell.fill   = fl
-            cell.border = br
+            cell.font = font(); cell.fill = fl; cell.border = br
             if fmt: cell.number_format = fmt
             return cell
 
         if tipo in ("match", "cc10_match"):
-            wc(1, rd["banco_fecha"])
-            wc(2, rd["banco_desc"])
+            wc(1, rd["banco_fecha"]); wc(2, rd["banco_desc"])
             wc(3, rd["banco_val"], FMT)
             diff = rd["banco_val"] + rd["siigo_val"]
             wc(4, diff if abs(diff) > 0.01 else None, FMT)
             wc(5, rd["siigo_val"], FMT)
-            wc(6, rd["comp"])
-            wc(7, rd["siigo_fecha"])
+            wc(6, rd["comp"]); wc(7, rd["siigo_fecha"])
 
         elif tipo == "siigo_only":
             for c in range(1, 5):
-                cell = ws3.cell(row_num, c)
-                cell.fill = fl; cell.border = br
-            wc(5, rd["siigo_val"], FMT)
-            wc(6, rd["comp"])
-            wc(7, rd["siigo_fecha"])
+                cell = ws3.cell(row_num, c); cell.fill = fl; cell.border = br
+            wc(5, rd["siigo_val"], FMT); wc(6, rd["comp"]); wc(7, rd["siigo_fecha"])
 
         else:  # banco_only
-            wc(1, rd["banco_fecha"])
-            wc(2, rd["banco_desc"])
+            wc(1, rd["banco_fecha"]); wc(2, rd["banco_desc"])
             wc(3, -rd["sort_val"], FMT)
             for c in range(4, 8):
-                cell = ws3.cell(row_num, c)
-                cell.fill = fl; cell.border = br
+                cell = ws3.cell(row_num, c); cell.fill = fl; cell.border = br
+
+    # ── Sección de impuestos al final de CREDITO ──────────────────────────────
+    # Suma de Hoja1 col Valor (idx 2) agrupada por descripción (idx 1)
+    imptos_sums = {}
+    for desc in IMPTOS_DESCS:
+        total = sum(row[2] for row in banco_raw_rows
+                    if row[1] == desc and isinstance(row[2], (int, float)))
+        imptos_sums[desc] = round(total, 2)
+
+    gray_br = border(C_GRAY_BR)
+    last_data_row = len(all_cred_rows) + 1   # +1 por encabezado
+    imptos_start  = last_data_row + 2         # +1 fila en blanco + 1
+
+    for i, desc in enumerate(IMPTOS_DESCS):
+        r = imptos_start + i
+        val = imptos_sums[desc]
+
+        # Col A: vacía con borde
+        ws3.cell(r, 1).border = gray_br
+
+        # Col B: descripción
+        cb = ws3.cell(r, 2, desc)
+        cb.font = font(); cb.border = gray_br
+
+        # Col C: valor (negativo)
+        cc = ws3.cell(r, 3, val)
+        cc.font = font(); cc.number_format = FMT; cc.border = gray_br
+
+        # Cols D-G: vacías con borde
+        for c in range(4, 8):
+            ws3.cell(r, c).border = gray_br
 
     # ── Nombre de archivo ─────────────────────────────────────────────────────
     meses = {1:"ENERO",2:"FEBRERO",3:"MARZO",4:"ABRIL",5:"MAYO",6:"JUNIO",
@@ -429,7 +445,6 @@ class handler(BaseHTTPRequestHandler):
                 fecha_ini, fecha_fin
             )
 
-            # Totales para el resumen del frontend
             total_deb_banco  = round(sum(r[2] for r in banco_raw_rows if isinstance(r[2], (int,float)) and r[2] > 0), 2)
             total_cred_banco = round(sum(abs(r[2]) for r in banco_raw_rows if isinstance(r[2], (int,float)) and r[2] < 0), 2)
             total_deb_siigo  = round(sum(m for _,_,m in siigo_deb), 2)
