@@ -26,7 +26,7 @@ def _fill(hex_color):
 
 
 def _font(bold=False):
-    return Font(name="Trebuchet MS", bold=bold, size=10)
+    return Font(name="Trebuchet MS", bold=bold, size=12)
 
 
 # ── Date helpers ──────────────────────────────────────────────────────────────
@@ -233,7 +233,7 @@ def _write_data_row(ws, row_idx, values, fill_color, hidden=False):
 def _write_header(ws, headers):
     for col_idx, h in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col_idx, value=h)
-        cell.font   = Font(name="Trebuchet MS", bold=True, color="FFFFFFFF", size=10)
+        cell.font   = Font(name="Trebuchet MS", bold=True, color="FFFFFFFF", size=12)
         cell.fill   = PatternFill("solid", fgColor="FF4472C4")
         cell.border = BORDER
 
