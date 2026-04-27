@@ -13,14 +13,14 @@ const MODULOS = [
     id: 'movimientos',
     href: '/movimientos',
     icon: '🏦',
-    nombre: 'Movimientos Bancarios',
+    nombre: 'Bancos Semanal',
     descripcion: 'Organiza los movimientos de Caja Social y Bancolombia por día y semana.',
   },
   {
     id: 'davivienda',
     href: '/davivienda',
     icon: '💳',
-    nombre: 'Davivienda + Redeban',
+    nombre: 'Davivienda Quincenal',
     descripcion: 'Cruza los QR de Davivienda con Redeban y arma el reporte quincenal.',
   },
   {
@@ -34,7 +34,7 @@ const MODULOS = [
     id: 'caja-social-nueva',
     href: '/caja-social-nueva',
     icon: '🏛️',
-    nombre: 'Caja Social Nueva',
+    nombre: 'Caja Social Mensual',
     descripcion: 'Concilia el extracto XLSX de la nueva página de Caja Social con Siigo.',
   },
 ]

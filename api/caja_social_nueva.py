@@ -6,6 +6,7 @@ from collections import Counter
 
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Border, Side
+from openpyxl.worksheet.filters import FilterColumn, Filters
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 GRAVAMEN   = "GRAVAMEN MOVS FINANCIEROS"
@@ -229,19 +230,28 @@ def _write_data_row(ws, row_idx, values, fill_color, hidden=False):
         ws.row_dimensions[row_idx].hidden = True
 
 
-def _write_header(ws, headers, col_count):
+def _write_header(ws, headers):
     for col_idx, h in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col_idx, value=h)
         cell.font   = Font(name="Trebuchet MS", bold=True, color="FFFFFFFF", size=10)
         cell.fill   = PatternFill("solid", fgColor="FF4472C4")
         cell.border = BORDER
-    col_letter = chr(ord("A") + col_count - 1)
-    ws.auto_filter.ref = f"A1:{col_letter}1"
 
 
 def _set_col_widths(ws, widths):
     for letter, w in widths.items():
         ws.column_dimensions[letter].width = w
+
+
+def _apply_filter(ws, last_data_row, col_count, visible_descs=None):
+    """Set AutoFilter ref and optionally a Description column filter."""
+    col_letter = chr(ord("A") + col_count - 1)
+    ws.auto_filter.ref = f"A1:{col_letter}{last_data_row}"
+    if visible_descs:
+        vals = [v for v in sorted(visible_descs) if v]
+        fc = FilterColumn(colId=1)   # column B = index 1 (0-based from A)
+        fc.filters = Filters(filter=vals)
+        ws.auto_filter.filterColumn.append(fc)
 
 
 def generar_excel(debito_rows, credito_rows, siigo_credito, siigo_debito):
@@ -254,41 +264,54 @@ def generar_excel(debito_rows, credito_rows, siigo_credito, siigo_debito):
     ws_deb = wb.active
     ws_deb.title = "DEBITO"
     _set_col_widths(ws_deb, {"A": 14, "B": 35, "C": 15, "D": 18, "E": 45})
-    _write_header(ws_deb,
-                  ["Fecha", "Descripción", "Documento", "-Débito", "Información Adicional"],
-                  5)
+    _write_header(ws_deb, ["Fecha", "Descripción", "Documento", "-Débito", "Información Adicional"])
+
+    # Classify rows
+    green_deb, yellow_deb, red_deb = [], [], []
+    especiales_rows = []   # for "Para Nataly" sheet
+    for orig_i, (fecha, desc, doc, amt, info) in enumerate(debito_rows):
+        is_especial = desc in ESPECIALES
+        is_matched  = orig_i in deb_matched
+        entry = (fecha, desc, doc, amt, info, is_especial)
+        if is_especial:
+            red_deb.append(entry)
+            especiales_rows.append((fecha, desc, doc, amt, info))
+        elif is_matched:
+            green_deb.append(entry)
+        else:
+            red_deb.append(entry)
+
+    for comp, fecha, ident, amt in siigo_cred_only:
+        yellow_deb.append((fecha, comp, ident, amt, "", False))
+
+    # Sort within each group by amount desc
+    key_amt = lambda r: -r[3]
+    green_deb.sort(key=key_amt)
+    yellow_deb.sort(key=key_amt)
+    red_deb.sort(key=key_amt)
 
     total_gravamen = 0
     total_dctos    = 0
+    visible_descs_deb = set()
     row_idx = 2
 
-    for orig_i, (fecha, desc, doc, amt, info) in sorted(enumerate(debito_rows), key=lambda x: -x[1][3]):
-        is_especial = desc in ESPECIALES
-        is_matched  = orig_i in deb_matched
-
-        if is_especial:
-            color  = C_RED
-            hidden = True
-            if desc == GRAVAMEN:
-                total_gravamen += amt
+    for rows, color in [(green_deb, C_GREEN), (yellow_deb, C_YELLOW), (red_deb, C_RED)]:
+        for fecha, desc, doc, amt, info, is_especial in rows:
+            hidden = is_especial
+            _write_data_row(ws_deb, row_idx, [fecha, desc, doc, amt, info], color, hidden)
+            if is_especial:
+                if desc == GRAVAMEN:
+                    total_gravamen += amt
+                else:
+                    total_dctos += amt
             else:
-                total_dctos += amt
-        elif is_matched:
-            color  = C_GREEN
-            hidden = False
-        else:
-            color  = C_RED
-            hidden = False
+                visible_descs_deb.add(str(desc) if desc else "")
+            row_idx += 1
 
-        _write_data_row(ws_deb, row_idx, [fecha, desc, doc, amt, info], color, hidden)
-        row_idx += 1
+    last_data_deb = row_idx - 1
+    _apply_filter(ws_deb, last_data_deb, 5, visible_descs_deb)
 
-    # Siigo-only rows (yellow)
-    for comp, fecha, ident, amt in siigo_cred_only:
-        _write_data_row(ws_deb, row_idx, [fecha, comp, ident, amt, ""], C_YELLOW)
-        row_idx += 1
-
-    # Blank separator + total rows for special concepts
+    # Blank separator + total rows
     row_idx += 1
     for label, total in [(GRAVAMEN, total_gravamen), (DCTOS, total_dctos)]:
         for col_idx, val in [(2, label), (4, total)]:
@@ -302,19 +325,60 @@ def generar_excel(debito_rows, credito_rows, siigo_credito, siigo_debito):
     # ── CREDITO sheet ─────────────────────────────────────────────────────────
     ws_cred = wb.create_sheet("CREDITO")
     _set_col_widths(ws_cred, {"A": 14, "B": 35, "C": 15, "D": 18, "E": 45})
-    _write_header(ws_cred,
-                  ["Fecha", "Descripción", "Documento", "+Crédito", "Información Adicional"],
-                  5)
+    _write_header(ws_cred, ["Fecha", "Descripción", "Documento", "+Crédito", "Información Adicional"])
+
+    green_cred, yellow_cred, red_cred = [], [], []
+    for orig_i, row in enumerate(credito_rows):
+        if orig_i in cred_matched:
+            green_cred.append(row)
+        else:
+            red_cred.append(row)
+    for comp, fecha, ident, amt in siigo_deb_only:
+        yellow_cred.append((fecha, comp, ident, amt, ""))
+
+    green_cred.sort(key=key_amt)
+    yellow_cred.sort(key=key_amt)
+    red_cred.sort(key=key_amt)
 
     row_idx_c = 2
-    for orig_i, (fecha, desc, doc, amt, info) in sorted(enumerate(credito_rows), key=lambda x: -x[1][3]):
-        color = C_GREEN if orig_i in cred_matched else C_RED
-        _write_data_row(ws_cred, row_idx_c, [fecha, desc, doc, amt, info], color)
-        row_idx_c += 1
+    for rows, color in [(green_cred, C_GREEN), (yellow_cred, C_YELLOW), (red_cred, C_RED)]:
+        for row in rows:
+            _write_data_row(ws_cred, row_idx_c, list(row), color)
+            row_idx_c += 1
 
-    for comp, fecha, ident, amt in siigo_deb_only:
-        _write_data_row(ws_cred, row_idx_c, [fecha, comp, ident, amt, ""], C_YELLOW)
-        row_idx_c += 1
+    last_data_cred = row_idx_c - 1
+    _apply_filter(ws_cred, last_data_cred, 5)
+
+    # ── Para Nataly sheet ─────────────────────────────────────────────────────
+    ws_nat = wb.create_sheet("Para Nataly")
+    _set_col_widths(ws_nat, {"A": 14, "B": 35, "C": 15, "D": 18, "E": 45})
+    _write_header(ws_nat, ["Fecha", "Descripción", "Documento", "-Débito", "Información Adicional"])
+
+    # GRAVAMEN rows then DCTOS rows, each sorted by amount desc
+    gravamen_rows = sorted(
+        [r for r in especiales_rows if r[1] == GRAVAMEN], key=key_amt)
+    dctos_rows = sorted(
+        [r for r in especiales_rows if r[1] == DCTOS], key=key_amt)
+
+    row_idx_n = 2
+    for row in gravamen_rows + dctos_rows:
+        fecha, desc, doc, amt, info = row
+        _write_data_row(ws_nat, row_idx_n, [fecha, desc, doc, amt, info], C_RED)
+        row_idx_n += 1
+
+    last_data_nat = row_idx_n - 1
+    _apply_filter(ws_nat, last_data_nat, 5)
+
+    # Total rows
+    row_idx_n += 1
+    for label, total in [(GRAVAMEN, total_gravamen), (DCTOS, total_dctos)]:
+        for col_idx, val in [(2, label), (4, total)]:
+            cell = ws_nat.cell(row=row_idx_n, column=col_idx, value=val)
+            cell.font   = _font(bold=True)
+            cell.border = BORDER
+            if col_idx == 4:
+                cell.number_format = "#,##0"
+        row_idx_n += 1
 
     buf = BytesIO()
     wb.save(buf)
