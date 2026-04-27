@@ -1,4 +1,5 @@
 import json, base64, math
+from datetime import datetime, date as date_type
 from io import BytesIO
 from http.server import BaseHTTPRequestHandler
 from collections import Counter
@@ -7,8 +8,8 @@ import openpyxl
 from openpyxl.styles import PatternFill, Font, Border, Side
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-GRAVAMEN = "GRAVAMEN MOVS FINANCIEROS"
-DCTOS    = "DCTOS DE NOMINA"
+GRAVAMEN   = "GRAVAMEN MOVS FINANCIEROS"
+DCTOS      = "DCTOS DE NOMINA"
 ESPECIALES = {GRAVAMEN, DCTOS}
 
 C_GREEN  = "FFE8F5E9"
@@ -25,6 +26,35 @@ def _fill(hex_color):
 
 def _font(bold=False):
     return Font(name="Trebuchet MS", bold=bold, size=10)
+
+
+# ── Date helpers ──────────────────────────────────────────────────────────────
+def _to_date(val):
+    """Convert 'DD/MM/YYYY' string or openpyxl date/datetime to date object."""
+    if val is None:
+        return None
+    if isinstance(val, datetime):
+        return val.date()
+    if isinstance(val, date_type):
+        return val
+    s = str(val).strip()
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            pass
+    return None
+
+
+def _parse_rango(fecha_ini_str, fecha_fin_str):
+    ini = datetime.strptime(fecha_ini_str, "%Y-%m-%d").date()
+    fin = datetime.strptime(fecha_fin_str, "%Y-%m-%d").date()
+    return ini, fin
+
+
+def _en_rango(fecha_val, ini, fin):
+    d = _to_date(fecha_val)
+    return d is not None and ini <= d <= fin
 
 
 # ── Amount parsing ────────────────────────────────────────────────────────────
@@ -46,9 +76,9 @@ def parse_monto(s):
 
 
 # ── Bank parsing ──────────────────────────────────────────────────────────────
-def leer_banco(data_b64):
-    """Return (debito_rows, credito_rows) from CS Nueva Página XLSX.
-    Each row tuple: (fecha, desc, doc, amount, info)
+def leer_banco(data_b64, ini, fin):
+    """Return (debito_rows, credito_rows) filtered to [ini, fin].
+    Each row tuple: (fecha_str, desc, doc, amount, info)
     """
     wb = openpyxl.load_workbook(BytesIO(base64.b64decode(data_b64)), data_only=True)
     ws = wb.active
@@ -62,6 +92,7 @@ def leer_banco(data_b64):
     for row in ws.iter_rows(values_only=True):
         if not header_found:
             vals = [str(c).lower() if c else "" for c in row]
+            # Detect actual data header (contains both 'fecha' and 'bito' from Débito)
             if any("fecha" in v for v in vals) and any("bito" in v for v in vals):
                 header_found = True
                 for i, v in enumerate(vals):
@@ -92,6 +123,10 @@ def leer_banco(data_b64):
         if fecha is None and desc is None:
             continue
 
+        # Date filter
+        if not _en_rango(fecha, ini, fin):
+            continue
+
         deb_amt  = parse_monto(deb_raw)
         cred_amt = parse_monto(cred_raw)
 
@@ -109,8 +144,9 @@ def leer_banco(data_b64):
 
 
 # ── Siigo parsing ─────────────────────────────────────────────────────────────
-def leer_siigo(data_b64):
-    """Return (siigo_credito, siigo_debito) as lists of (comp, fecha, ident, amount).
+def leer_siigo(data_b64, ini, fin):
+    """Return (siigo_credito, siigo_debito) filtered to [ini, fin].
+    Each entry tuple: (comp, fecha_str, ident, amount)
     siigo_credito → cross-matches CS Débito
     siigo_debito  → cross-matches CS Crédito
     """
@@ -134,10 +170,14 @@ def leer_siigo(data_b64):
         if not comp_s:
             continue
 
-        fecha     = row[4]
-        ident     = row[5]
-        deb_amt   = parse_monto(row[12])
-        cred_amt  = parse_monto(row[13])
+        fecha    = row[4]
+        ident    = row[5]
+        deb_amt  = parse_monto(row[12])
+        cred_amt = parse_monto(row[13])
+
+        # Date filter
+        if not _en_rango(fecha, ini, fin):
+            continue
 
         fecha_s = str(fecha) if fecha else ""
         ident_s = str(ident) if ident else ""
@@ -153,7 +193,7 @@ def leer_siigo(data_b64):
 # ── Matching ──────────────────────────────────────────────────────────────────
 def match_multiset(bank_rows, siigo_entries):
     """Multiset match by amount.
-    Returns bank_matched (set of indices) and siigo_only (list of siigo entries).
+    Returns bank_matched (set of indices) and siigo_only (unmatched siigo entries).
     """
     siigo_counter = Counter(e[3] for e in siigo_entries)
 
@@ -222,7 +262,6 @@ def generar_excel(debito_rows, credito_rows, siigo_credito, siigo_debito):
     total_dctos    = 0
     row_idx = 2
 
-    # Sort all CS Débito rows descending by amount (special rows hidden wherever they fall)
     for orig_i, (fecha, desc, doc, amt, info) in sorted(enumerate(debito_rows), key=lambda x: -x[1][3]):
         is_especial = desc in ESPECIALES
         is_matched  = orig_i in deb_matched
@@ -244,15 +283,13 @@ def generar_excel(debito_rows, credito_rows, siigo_credito, siigo_debito):
         _write_data_row(ws_deb, row_idx, [fecha, desc, doc, amt, info], color, hidden)
         row_idx += 1
 
-    # Siigo-only rows (yellow, appended)
+    # Siigo-only rows (yellow)
     for comp, fecha, ident, amt in siigo_cred_only:
         _write_data_row(ws_deb, row_idx, [fecha, comp, ident, amt, ""], C_YELLOW)
         row_idx += 1
 
-    # Blank separator
+    # Blank separator + total rows for special concepts
     row_idx += 1
-
-    # Total rows for special concepts
     for label, total in [(GRAVAMEN, total_gravamen), (DCTOS, total_dctos)]:
         for col_idx, val in [(2, label), (4, total)]:
             cell = ws_deb.cell(row=row_idx, column=col_idx, value=val)
@@ -275,7 +312,6 @@ def generar_excel(debito_rows, credito_rows, siigo_credito, siigo_debito):
         _write_data_row(ws_cred, row_idx_c, [fecha, desc, doc, amt, info], color)
         row_idx_c += 1
 
-    # Siigo-only rows (yellow)
     for comp, fecha, ident, amt in siigo_deb_only:
         _write_data_row(ws_cred, row_idx_c, [fecha, comp, ident, amt, ""], C_YELLOW)
         row_idx_c += 1
@@ -286,24 +322,22 @@ def generar_excel(debito_rows, credito_rows, siigo_credito, siigo_debito):
 
 
 # ── Totals ────────────────────────────────────────────────────────────────────
-def calcular_totales(debito_rows, credito_rows, siigo_credito, siigo_debito):
+def calcular_resumen(debito_rows, credito_rows, siigo_credito, siigo_debito):
     total_cs_deb   = sum(r[3] for r in debito_rows)
     total_sii_cred = sum(e[3] for e in siigo_credito)
     total_cs_cred  = sum(r[3] for r in credito_rows)
     total_sii_deb  = sum(e[3] for e in siigo_debito)
+    diff_deb  = total_cs_deb  - total_sii_cred
+    diff_cred = total_cs_cred - total_sii_deb
 
     return {
-        "salida": {
-            "banco":      total_cs_deb,
-            "siigo":      total_sii_cred,
-            "diferencia": total_cs_deb - total_sii_cred,
-        },
-        "entrada": {
-            "banco":      total_cs_cred,
-            "siigo":      total_sii_deb,
-            "diferencia": total_cs_cred - total_sii_deb,
-        },
-        "conciliado": (total_cs_deb == total_sii_cred and total_cs_cred == total_sii_deb),
+        "total_deb_banco":  total_cs_deb,
+        "total_deb_siigo":  total_sii_cred,
+        "diff_deb":         diff_deb,
+        "total_cred_banco": total_cs_cred,
+        "total_cred_siigo": total_sii_deb,
+        "diff_cred":        diff_cred,
+        "conciliado":       diff_deb == 0 and diff_cred == 0,
     }
 
 
@@ -314,13 +348,19 @@ class handler(BaseHTTPRequestHandler):
         body   = json.loads(self.rfile.read(length))
 
         try:
-            debito_rows, credito_rows = leer_banco(body["banco"])
-            siigo_credito, siigo_debito = leer_siigo(body["siigo"])
+            ini, fin = _parse_rango(body["fecha_inicio"], body["fecha_fin"])
+
+            debito_rows, credito_rows   = leer_banco(body["banco_b64"], ini, fin)
+            siigo_credito, siigo_debito = leer_siigo(body["siigo_b64"], ini, fin)
 
             excel_bytes = generar_excel(debito_rows, credito_rows, siigo_credito, siigo_debito)
-            totales     = calcular_totales(debito_rows, credito_rows, siigo_credito, siigo_debito)
+            resumen     = calcular_resumen(debito_rows, credito_rows, siigo_credito, siigo_debito)
 
-            payload = {"excel": base64.b64encode(excel_bytes).decode(), **totales}
+            payload = {
+                "archivo_b64": base64.b64encode(excel_bytes).decode(),
+                "nombre":      "conciliacion_caja_social_nueva.xlsx",
+                "resumen":     resumen,
+            }
             self._respond(200, payload)
 
         except Exception as exc:

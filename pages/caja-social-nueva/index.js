@@ -1,193 +1,389 @@
 import { useState } from 'react'
+import Link from 'next/link'
 import Layout from '../../components/Layout'
 import UploadZone from '../../components/UploadZone'
 
-function fmtCOP(n) {
-  if (n === null || n === undefined) return '—'
-  const abs = Math.abs(n)
-  const fmt = abs.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-  return (n < 0 ? '-' : '') + '$ ' + fmt
+function ModalComoFunciona({ onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.6)' }}
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-lg rounded-2xl overflow-y-auto max-h-[90vh]"
+        style={{ background: '#004D5F', border: '1px solid rgba(255,255,255,0.12)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4"
+             style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: '#006070' }}>
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🏛️</span>
+            <h2 className="text-white font-semibold text-[15px]">¿Cómo funciona?</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-secondary hover:text-white transition-colors text-xl leading-none"
+            aria-label="Cerrar"
+          >×</button>
+        </div>
+
+        <div className="px-6 py-5 space-y-5 text-sm leading-relaxed">
+
+          <section>
+            <h3 className="text-white font-semibold mb-1.5">¿Qué hace?</h3>
+            <p className="text-secondary">
+              Toma el extracto de la <strong className="text-white">nueva página de Caja Social</strong> (formato XLSX)
+              y el auxiliar de Siigo, filtra por el rango de fechas elegido, y genera un Excel con dos hojas listas
+              para conciliar las salidas y entradas de la cuenta.
+            </p>
+          </section>
+
+          <section>
+            <h3 className="text-white font-semibold mb-1.5">Archivos que necesita</h3>
+            <div className="rounded-lg px-3 py-2.5 space-y-1.5" style={{ background: 'rgba(255,255,255,0.05)' }}>
+              <p className="text-secondary text-xs">
+                — <strong className="text-white">Extracto Caja Social (.xlsx)</strong>: descargado desde la nueva
+                página web de Caja Social. Sheet: AccountMovementsExtended.
+              </p>
+              <p className="text-secondary text-xs">
+                — <strong className="text-white">Siigo sin arreglar (.xlsx)</strong>: reporte
+                "Movimiento auxiliar por cuenta contable" exportado de Siigo para la cuenta 11200501.
+              </p>
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-white font-semibold mb-1.5">Las dos hojas del resultado</h3>
+            <div className="space-y-2">
+              <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(0,196,212,0.07)', border: '1px solid rgba(0,196,212,0.15)' }}>
+                <p className="text-white text-xs font-semibold">DEBITO — Salidas (CS Débito ↔ Siigo Crédito)</p>
+                <p className="text-secondary text-xs mt-0.5">
+                  Salidas del banco ordenadas de mayor a menor. Verde = cuadra con Siigo, rojo = solo en banco,
+                  amarillo = solo en Siigo. GRAVAMEN y DCTOS DE NOMINA se ocultan y totalizan al final.
+                </p>
+              </div>
+              <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(0,196,212,0.07)', border: '1px solid rgba(0,196,212,0.15)' }}>
+                <p className="text-white text-xs font-semibold">CREDITO — Entradas (CS Crédito ↔ Siigo Débito)</p>
+                <p className="text-secondary text-xs mt-0.5">
+                  Entradas al banco ordenadas de mayor a menor. Mismo esquema de colores.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-white font-semibold mb-1.5">Cruce de datos</h3>
+            <div className="rounded-lg px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.05)' }}>
+              <p className="text-secondary text-xs">
+                El cruce es por <strong className="text-white">valor exacto</strong> (no por fecha).
+                Solo se procesan los movimientos dentro del rango de fechas elegido.
+                GRAVAMEN MOVS FINANCIEROS y DCTOS DE NOMINA se excluyen del cruce y se totalizan por separado.
+              </p>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  )
 }
 
-function TotalesRow({ label, value, highlight }) {
-  const colorClass =
-    highlight === 'error' ? 'text-red-400' :
-    highlight === 'ok'    ? 'text-green-400' :
-    'text-white'
+function fmtCOP(n) {
+  if (n === null || n === undefined) return '—'
+  return Math.abs(n).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+}
+
+function TotalesRow({ label, value, sep, diff, highlight }) {
+  const textColor = highlight ? '#EF5350' : diff && Math.abs(value) < 1 ? '#66BB6A' : '#FFFFFF'
   return (
-    <div className="flex justify-between items-center py-1.5">
-      <span className="text-white/60 text-sm">{label}</span>
-      <span className={`font-mono text-sm font-semibold ${colorClass}`}>
-        {fmtCOP(value)}
+    <div className="flex items-center justify-between px-4 py-2.5 text-sm"
+         style={{
+           background: sep ? 'rgba(255,255,255,0.04)' : 'transparent',
+           borderTop:  sep ? '1px solid rgba(255,255,255,0.06)' : 'none',
+         }}>
+      <span className="text-secondary text-xs">{label}</span>
+      <span className="font-semibold tabular-nums" style={{ color: textColor }}>
+        {diff && value < 0 ? '-' : ''}{fmtCOP(value)}
       </span>
     </div>
   )
 }
 
-export default function CajaSocialNueva() {
-  const [banco, setBanco]       = useState(null)
-  const [siigo, setSiigo]       = useState(null)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState(null)
-  const [resultado, setResultado] = useState(null)
-
-  const toBase64 = file => new Promise((res, rej) => {
-    const r = new FileReader()
-    r.onload  = () => res(r.result.split(',')[1])
-    r.onerror = rej
-    r.readAsDataURL(file)
+const toBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload  = () => resolve(reader.result.split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
   })
 
-  const procesar = async () => {
-    if (!banco || !siigo) return
-    setLoading(true)
-    setError(null)
+export default function CajaSocialNueva() {
+  const [bancoFile, setBancoFile] = useState(null)
+  const [siigoFile, setSiigoFile] = useState(null)
+  const [fechaIni, setFechaIni]   = useState('')
+  const [fechaFin, setFechaFin]   = useState('')
+  const [estado, setEstado]       = useState('idle')
+  const [resultado, setResultado] = useState(null)
+  const [errorMsg, setErrorMsg]   = useState('')
+  const [modal, setModal]         = useState(false)
+
+  const puedeEnviar = bancoFile && siigoFile && fechaIni && fechaFin && estado !== 'loading'
+
+  const handleProcesar = async () => {
+    setEstado('loading')
     setResultado(null)
+    setErrorMsg('')
+
     try {
-      const [b64banco, b64siigo] = await Promise.all([toBase64(banco), toBase64(siigo)])
+      const [bancoB64, siigoB64] = await Promise.all([toBase64(bancoFile), toBase64(siigoFile)])
+
       const res = await fetch('/api/caja_social_nueva', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ banco: b64banco, siigo: b64siigo }),
+        body:    JSON.stringify({
+          banco_b64:    bancoB64,
+          siigo_b64:    siigoB64,
+          fecha_inicio: fechaIni,
+          fecha_fin:    fechaFin,
+        }),
       })
+
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Error procesando')
-      setResultado(data)
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
+      if (!res.ok) throw new Error(data.error || `Error del servidor (${res.status})`)
+
+      // Descargar el Excel automáticamente
+      const byteChars = atob(data.archivo_b64)
+      const byteArr   = new Uint8Array(byteChars.length)
+      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i)
+      const blob = new Blob([byteArr], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = data.nombre || 'conciliacion_caja_social_nueva.xlsx'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      setResultado(data.resumen)
+      setEstado('success')
+
+    } catch (err) {
+      setErrorMsg(err.message)
+      setEstado('error')
     }
   }
 
-  const descargar = () => {
-    if (!resultado?.excel) return
-    const bytes = Uint8Array.from(atob(resultado.excel), c => c.charCodeAt(0))
-    const blob  = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-    const url   = URL.createObjectURL(blob)
-    const a     = document.createElement('a')
-    a.href      = url
-    a.download  = 'conciliacion_caja_social_nueva.xlsx'
-    a.click()
-    URL.revokeObjectURL(url)
+  const handleReiniciar = () => {
+    setBancoFile(null)
+    setSiigoFile(null)
+    setFechaIni('')
+    setFechaFin('')
+    setEstado('idle')
+    setResultado(null)
+    setErrorMsg('')
   }
-
-  const canProcesar = banco && siigo && !loading
 
   return (
     <Layout title="Caja Social Nueva — Slendy Automatizaciones">
-      <div className="max-w-3xl mx-auto px-6 py-10">
-        <h1 className="text-[22px] font-bold text-white mb-1">
-          Caja Social — Página Nueva
-        </h1>
-        <p className="text-white/50 text-sm mb-8">
-          Concilia el extracto XLSX de la nueva página de Caja Social con Siigo.
-        </p>
+      {modal && <ModalComoFunciona onClose={() => setModal(false)} />}
+      <div className="min-h-[calc(100vh-48px)] px-6 py-8">
+        <div className="max-w-xl mx-auto">
 
-        {/* Uploads */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <UploadZone
-            label="Extracto Caja Social"
-            accept=".xlsx"
-            onFile={setBanco}
-            file={banco}
-          />
-          <UploadZone
-            label="Siigo"
-            accept=".xlsx"
-            onFile={setSiigo}
-            file={siigo}
-          />
-        </div>
-
-        {/* Procesar */}
-        <button
-          onClick={procesar}
-          disabled={!canProcesar}
-          className="w-full py-3 rounded-xl font-semibold text-sm transition-all"
-          style={{
-            background: canProcesar
-              ? 'linear-gradient(135deg, #00C4D4, #0096A0)'
-              : 'rgba(255,255,255,0.06)',
-            color:  canProcesar ? '#fff' : 'rgba(255,255,255,0.3)',
-            cursor: canProcesar ? 'pointer' : 'not-allowed',
-          }}
-        >
-          {loading ? 'Procesando…' : 'Procesar'}
-        </button>
-
-        {/* Error */}
-        {error && (
-          <div className="mt-4 p-4 rounded-xl text-red-400 text-sm"
-               style={{ background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.3)' }}>
-            {error}
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-2 text-xs text-secondary mb-6">
+            <Link href="/" className="hover:text-white transition-colors">Inicio</Link>
+            <span>/</span>
+            <span className="text-white">Caja Social Nueva</span>
           </div>
-        )}
 
-        {/* Resultado */}
-        {resultado && (
-          <div className="mt-6 space-y-4">
+          {/* Card principal */}
+          <div className="rounded-2xl overflow-hidden"
+               style={{ background: '#004D5F', border: '1px solid rgba(255,255,255,0.08)' }}>
 
-            {resultado.conciliado && (
-              <div className="p-4 rounded-xl text-center font-semibold text-green-400"
-                   style={{ background: 'rgba(0,200,100,0.1)', border: '1px solid rgba(0,200,100,0.3)' }}>
-                ¡Conciliado! ✓
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-              {/* Total Salida */}
-              <div className="rounded-xl p-5"
-                   style={{ background: 'rgba(0,60,80,0.6)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <p className="text-white/40 text-xs uppercase tracking-widest font-medium mb-3">
-                  Total Salida
-                </p>
-                <TotalesRow label="CS Débito"     value={resultado.salida.banco} />
-                <TotalesRow label="Siigo Crédito" value={resultado.salida.siigo} />
-                <div className="border-t border-white/10 mt-2 pt-2">
-                  <TotalesRow
-                    label="Diferencia"
-                    value={resultado.salida.diferencia}
-                    highlight={resultado.salida.diferencia === 0 ? 'ok' : 'error'}
-                  />
+            {/* Header */}
+            <div className="px-6 py-5"
+                 style={{ background: '#006070', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🏛️</span>
+                  <div>
+                    <h1 className="text-white font-semibold text-[17px] leading-tight">
+                      Caja Social — Página Nueva
+                    </h1>
+                    <p className="text-secondary text-xs mt-0.5">
+                      Cruza el extracto XLSX con Siigo y arma las hojas de conciliación
+                    </p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => setModal(true)}
+                  className="flex-shrink-0 text-xs transition-colors"
+                  style={{ color: 'rgba(0,196,212,0.8)' }}
+                  onMouseOver={e => e.currentTarget.style.color = '#00C4D4'}
+                  onMouseOut={e => e.currentTarget.style.color = 'rgba(0,196,212,0.8)'}
+                >
+                  ¿Cómo funciona?
+                </button>
               </div>
-
-              {/* Total Entrada */}
-              <div className="rounded-xl p-5"
-                   style={{ background: 'rgba(0,60,80,0.6)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <p className="text-white/40 text-xs uppercase tracking-widest font-medium mb-3">
-                  Total Entrada
-                </p>
-                <TotalesRow label="CS Crédito"  value={resultado.entrada.banco} />
-                <TotalesRow label="Siigo Débito" value={resultado.entrada.siigo} />
-                <div className="border-t border-white/10 mt-2 pt-2">
-                  <TotalesRow
-                    label="Diferencia"
-                    value={resultado.entrada.diferencia}
-                    highlight={resultado.entrada.diferencia === 0 ? 'ok' : 'error'}
-                  />
-                </div>
-              </div>
-
             </div>
 
-            {/* Descarga */}
-            <button
-              onClick={descargar}
-              className="w-full py-3 rounded-xl font-semibold text-sm"
-              style={{
-                background: 'rgba(0,196,212,0.15)',
-                border: '1px solid rgba(0,196,212,0.3)',
-                color: '#00C4D4',
-              }}
-            >
-              Descargar Excel
-            </button>
+            {/* Contenido */}
+            <div className="px-6 py-6 space-y-6">
 
+              {estado !== 'success' && (
+                <>
+                  {/* Instrucción */}
+                  <div className="rounded-lg px-4 py-3 text-xs text-secondary leading-relaxed"
+                       style={{ background: 'rgba(0,196,212,0.07)', border: '1px solid rgba(0,196,212,0.15)' }}>
+                    Sube el <strong className="text-white">.xlsx</strong> del banco Caja Social y el{' '}
+                    <strong className="text-white">.xlsx</strong> de Siigo sin arreglar, y elige el rango de fechas.
+                  </div>
+
+                  {/* Zonas de upload */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <UploadZone
+                      accept=".xlsx"
+                      label="Extracto Caja Social"
+                      sublabel=".xlsx — nueva página web"
+                      icon="🏛️"
+                      file={bancoFile}
+                      onFile={setBancoFile}
+                    />
+                    <UploadZone
+                      accept=".xlsx"
+                      label="Siigo sin arreglar"
+                      sublabel=".xlsx — mov. auxiliar por cuenta"
+                      icon="📊"
+                      file={siigoFile}
+                      onFile={setSiigoFile}
+                    />
+                  </div>
+
+                  {/* Rango de fechas */}
+                  <div>
+                    <p className="text-secondary text-xs font-medium mb-3 uppercase tracking-wider">
+                      Rango de fechas
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-secondary text-xs">Desde</label>
+                        <input
+                          type="date"
+                          value={fechaIni}
+                          onChange={e => setFechaIni(e.target.value)}
+                          className="date-input"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-secondary text-xs">Hasta</label>
+                        <input
+                          type="date"
+                          value={fechaFin}
+                          onChange={e => setFechaFin(e.target.value)}
+                          className="date-input"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Botón procesar */}
+                  <button
+                    onClick={handleProcesar}
+                    disabled={!puedeEnviar}
+                    className="w-full rounded-xl py-3 font-semibold text-[15px] transition-all duration-200"
+                    style={{
+                      background: puedeEnviar ? '#00C4D4' : 'rgba(255,255,255,0.1)',
+                      color:      puedeEnviar ? '#003F4F' : 'rgba(255,255,255,0.35)',
+                      cursor:     puedeEnviar ? 'pointer' : 'not-allowed',
+                      boxShadow:  puedeEnviar ? '0 4px 16px rgba(0,196,212,0.35)' : 'none',
+                    }}
+                  >
+                    {estado === 'loading' ? 'Procesando…' : 'Conciliar y descargar'}
+                  </button>
+                </>
+              )}
+
+              {/* Spinner */}
+              {estado === 'loading' && (
+                <div className="flex flex-col items-center gap-4 py-4">
+                  <div className="spinner" />
+                  <p className="text-secondary text-sm">Cruzando banco con Siigo…</p>
+                </div>
+              )}
+
+              {/* Error */}
+              {estado === 'error' && (
+                <div className="rounded-xl px-4 py-4 text-sm"
+                     style={{ background: 'rgba(239,83,80,0.12)', border: '1px solid rgba(239,83,80,0.3)' }}>
+                  <p className="text-white font-medium mb-1">Ocurrió un error</p>
+                  <p className="text-secondary text-xs">{errorMsg}</p>
+                  <button onClick={handleReiniciar}
+                          className="mt-3 text-xs text-cyan-bright hover:underline">
+                    Intentar de nuevo
+                  </button>
+                </div>
+              )}
+
+              {/* Resultado */}
+              {estado === 'success' && resultado && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">✅</span>
+                    <p className="text-white font-semibold">¡Listo! El archivo se descargó automáticamente.</p>
+                  </div>
+
+                  {resultado.conciliado && (
+                    <div className="rounded-xl px-4 py-3 text-sm text-center"
+                         style={{ background: 'rgba(102,187,106,0.15)', border: '1px solid rgba(102,187,106,0.4)' }}>
+                      <p className="text-[#66BB6A] font-semibold">¡Conciliación perfecta! Ambas diferencias son cero. 🎉</p>
+                    </div>
+                  )}
+
+                  {/* Bloque Salida (CS Débito ↔ Siigo Crédito) */}
+                  <div>
+                    <p className="text-secondary text-[11px] uppercase tracking-widest font-medium mb-2">Salida</p>
+                    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <TotalesRow label="Total banco"  value={resultado.total_deb_banco} />
+                      <TotalesRow label="Total Siigo"  value={resultado.total_deb_siigo} sep />
+                      <TotalesRow label="Diferencia"   value={resultado.diff_deb}
+                                  diff highlight={Math.abs(resultado.diff_deb) > 1} />
+                    </div>
+                  </div>
+
+                  {/* Bloque Entrada (CS Crédito ↔ Siigo Débito) */}
+                  <div>
+                    <p className="text-secondary text-[11px] uppercase tracking-widest font-medium mb-2">Entrada</p>
+                    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <TotalesRow label="Total banco"  value={resultado.total_cred_banco} />
+                      <TotalesRow label="Total Siigo"  value={resultado.total_cred_siigo} sep />
+                      <TotalesRow label="Diferencia"   value={resultado.diff_cred}
+                                  diff highlight={Math.abs(resultado.diff_cred) > 1} />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={handleReiniciar}
+                            className="flex-1 rounded-xl py-2.5 text-sm font-medium transition-all"
+                            style={{ background: 'transparent', border: '1px solid #00C4D4', color: '#00C4D4' }}
+                            onMouseOver={e => e.currentTarget.style.background = 'rgba(0,196,212,0.1)'}
+                            onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                      Nuevo período
+                    </button>
+                    <Link href="/"
+                          className="flex-1 rounded-xl py-2.5 text-sm font-medium text-center transition-all"
+                          style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)' }}>
+                      Volver al inicio
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+            </div>
           </div>
-        )}
+
+        </div>
       </div>
     </Layout>
   )
