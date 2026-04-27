@@ -30,6 +30,13 @@ const MODULOS = [
     nombre: 'Cta Ahorros Caja Social',
     descripcion: 'Concilia la cuenta de ahorros de Caja Social con Siigo por débitos y créditos.',
   },
+  {
+    id: 'caja-social-nueva',
+    href: '/caja-social-nueva',
+    icon: '🏛️',
+    nombre: 'Caja Social Nueva',
+    descripcion: 'Concilia el extracto XLSX de la nueva página de Caja Social con Siigo.',
+  },
 ]
 
 export default function Dashboard() {

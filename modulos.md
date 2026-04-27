@@ -442,3 +442,79 @@ siigo_creditos:   N créditos Siigo (excl. CC-10 sin match)
 2. Crear los archivos del módulo según las convenciones en `CLAUDE.md`
 
 3. Añadir la tarjeta al dashboard (`pages/index.js`)
+
+---
+
+## Módulo 5 — Caja Social Nueva
+
+**Ruta web**: `/caja-social-nueva`  
+**Función backend**: `api/caja_social_nueva.py`  
+**Estado**: ✅ Activo
+
+### ¿Para qué sirve?
+Concilia el extracto XLSX de la **nueva página web** de Caja Social con Siigo.  
+A diferencia del módulo 4 (que usaba el formato SYLK de la página vieja), este módulo recibe un `.xlsx` con columnas en un layout diferente y montos en formato colombiano ('1.234.567,00').
+
+La lógica de cruce es invertida respecto al módulo 4:
+- **CS Débito** (salidas del banco) ↔ **Siigo Crédito** (asiento contable que reduce el activo bancario)
+- **CS Crédito** (entradas al banco) ↔ **Siigo Débito** (asiento contable que aumenta el activo bancario)
+
+---
+
+### Inputs
+
+| Archivo | Formato | Origen |
+|---------|---------|--------|
+| Extracto Caja Social | `.xlsx` | Descargado desde la nueva página de Caja Social (sheet: AccountMovementsExtended) |
+| Siigo | `.xlsx` | Exportado desde Siigo → Movimiento auxiliar por cuenta contable (cuenta 11200501) |
+
+---
+
+### Lógica de procesamiento
+
+1. **Lectura del banco**: se detecta la fila de encabezado buscando la fila que contenga tanto 'Fecha' como 'Débito'. Se leen cols Fecha, Descripción, Documento, -Débito, +Crédito, Información Adicional. Los montos ('1.234.567,00') se parsean a entero.
+
+2. **Separación**: filas con Débito > 0 → grupo Débito. Filas con Crédito > 0 → grupo Crédito.
+
+3. **Lectura de Siigo**: se detecta el encabezado buscando la fila donde col C == 'Comprobante'. Se toman col 12 (Débito) y col 13 (Crédito). Se omiten filas de totales/vacías.
+
+4. **Cruce por valor (multiset)**: cada valor de CS Débito se busca en Siigo Crédito. Cada valor de CS Crédito se busca en Siigo Débito. La coincidencia es por monto exacto.
+
+5. **Output Excel** (dos hojas):
+
+#### Hoja 1: `DEBITO`
+Columnas: Fecha, Descripción, Documento, -Débito, Información Adicional  
+- Ordenada descendente por -Débito.  
+- **Verde**: CS Débito que coincide con un Siigo Crédito.  
+- **Rojo**: CS Débito sin match en Siigo (incluyendo GRAVAMEN MOVS FINANCIEROS y DCTOS DE NOMINA).  
+- **Amarillo**: Siigo Crédito sin match en banco (filas appended al final).  
+- GRAVAMEN MOVS FINANCIEROS y DCTOS DE NOMINA: rojos + **ocultos** por filtro.  
+- Al final: fila en blanco + dos filas de total (una por concepto especial), valor en col D.
+
+#### Hoja 2: `CREDITO`
+Columnas: Fecha, Descripción, Documento, +Crédito, Información Adicional  
+- Ordenada descendente por +Crédito.  
+- **Verde**: CS Crédito que coincide con un Siigo Débito.  
+- **Rojo**: CS Crédito sin match.  
+- **Amarillo**: Siigo Débito sin match en banco (filas appended al final).  
+- Filtro activo en encabezado.
+
+#### Respuesta JSON al frontend
+```
+excel:      base64 del archivo .xlsx
+salida.banco:      sum CS Débito
+salida.siigo:      sum Siigo Crédito
+salida.diferencia: banco - siigo
+entrada.banco:     sum CS Crédito
+entrada.siigo:     sum Siigo Débito
+entrada.diferencia: banco - siigo
+conciliado:        true si ambas diferencias == 0
+```
+
+---
+
+### Notas y excepciones conocidas
+- Los montos en el extracto bancario vienen como strings con formato colombiano ('1.234.567,00'); se parsean eliminando puntos y reemplazando la coma por punto decimal.
+- La detección del encabezado es robusta: busca la fila que contenga simultáneamente 'fecha' y 'bito' (de Débito) para no confundir con la fila 'Fecha del reporte'.
+- Los conceptos especiales (GRAVAMEN, DCTOS DE NOMINA) se ocultan independientemente de si cuadran con Siigo o no.
+- El Siigo puede tener más meses que el banco; los valores que no coincidan quedan como 'Siigo only' (amarillo).
