@@ -232,7 +232,7 @@ export default function Davivienda() {
                     <UploadZone
                       accept=".xlsx"
                       label="Davivienda"
-                      sublabel=".xlsx descargado del banco"
+                      sublabel=".xlsx — portal Davivienda"
                       logo="/logos/Davivienda.png"
                       file={davFile}
                       onFile={setDavFile}
@@ -240,7 +240,7 @@ export default function Davivienda() {
                     <UploadZone
                       accept=".csv"
                       label="Redeban QR"
-                      sublabel=".csv de consulta de transacciones"
+                      sublabel=".csv — consulta de transacciones"
                       logo="/logos/Redeban.webp"
                       file={redebanFile}
                       onFile={setRbFile}

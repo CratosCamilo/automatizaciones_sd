@@ -106,7 +106,7 @@ Este parámetro es **el único criterio de match**. Fecha y monto no se usan (pu
 
 ---
 
-## Módulo 2 — Movimientos Bancarios
+## Módulo 2 — Bancos Semanal
 
 **Ruta web**: `/movimientos`  
 **Función backend**: `api/movimientos.py`  

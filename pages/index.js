@@ -50,7 +50,7 @@ const MODULOS = [
       { src: '/logos/Siigo.png',      alt: 'Siigo'             },
     ],
     nombre: 'Caja Social Mensual',
-    descripcion: 'Concilia el extracto XLSX de la nueva página de Caja Social con Siigo.',
+    descripcion: 'Concilia el extracto de la nueva página de Caja Social con Siigo.',
   },
 ]
 

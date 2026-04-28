@@ -34,7 +34,8 @@ slendy-automatizaciones/
 │   └── UploadZone.js         # Componente reutilizable de upload
 ├── styles/
 │   └── globals.css           # Tailwind + variables CSS del style guide
-├── public/                   # Assets estáticos
+├── public/
+│   └── logos/                # Logos de empresas (DIAN, Siigo, bancos) — servidos estáticamente
 ├── requirements.txt          # Dependencias Python (todas las funciones)
 ├── package.json
 ├── vercel.json               # Config de runtimes Python
@@ -50,8 +51,9 @@ slendy-automatizaciones/
 ### Añadir un módulo nuevo
 1. Crear la página: `pages/[nombre-modulo]/index.js`
 2. Crear la función backend: `api/[nombre-modulo].py`
-3. Añadir la tarjeta en `pages/index.js` (array `MODULOS`)
-4. Documentar en `modulos.md`
+3. Añadir la tarjeta en `pages/index.js` (array `MODULOS`) con el campo `logos` (array de `{ src, alt }` apuntando a `/logos/`)
+4. Copiar los logos de empresas a `public/logos/` si aún no están
+5. Documentar en `modulos.md`
 
 ### Funciones Python serverless
 - Cada función es autónoma: incluye toda su lógica, no importa de otras funciones.
@@ -66,6 +68,10 @@ slendy-automatizaciones/
 - Cada página de módulo sigue el mismo patrón: zona de upload → botón procesar → spinner → resultado/descarga.
 - El texto de la UI usa tuteo (no voseo): "sube", "elige", "descarga".
 - Inputs de fecha usan la clase `.date-input` definida en `globals.css` (fondo oscuro, `color-scheme: dark`).
+- `ModuleCard` recibe `logos` (array `{ src, alt }`); en hover los chips se separan con animación `⟷`.
+- `UploadZone` recibe `logo` (string o array de strings a `/logos/`) en lugar de `icon` emoji.
+- Labels de UploadZone: solo el nombre de la entidad (sin "Archivo", "Reporte", "Extracto").
+- Sublabels de UploadZone: `.ext — breve descripción de origen` (siempre con guion largo).
 
 ---
 
@@ -96,10 +102,11 @@ git push origin main  # Vercel detecta el push y despliega automáticamente
 
 | # | Nombre | Ruta | Backend |
 |---|--------|------|---------|
-| 1 | Movimientos Bancarios | `/movimientos` | `api/movimientos.py` |
-| 2 | Conciliación DIAN vs Siigo | `/conciliacion` | `api/conciliacion.py` |
-| 3 | Davivienda + Redeban | `/davivienda` | `api/davivienda.py` |
+| 1 | Conciliación DIAN vs Siigo | `/conciliacion` | `api/conciliacion.py` |
+| 2 | Bancos Semanal | `/movimientos` | `api/movimientos.py` |
+| 3 | Davivienda Quincenal | `/davivienda` | `api/davivienda.py` |
 | 4 | Cta Ahorros Caja Social | `/cta-ahorros` | `api/cta_ahorros.py` |
+| 5 | Caja Social Mensual | `/caja-social-nueva` | `api/caja_social_nueva.py` |
 
 ---
 

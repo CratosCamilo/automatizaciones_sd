@@ -238,15 +238,15 @@ export default function CajaSocialNueva() {
                   {/* Instrucción */}
                   <div className="rounded-lg px-4 py-3 text-xs text-secondary leading-relaxed"
                        style={{ background: 'rgba(0,196,212,0.07)', border: '1px solid rgba(0,196,212,0.15)' }}>
-                    Sube el <strong className="text-white">.xlsx</strong> del banco Caja Social y el{' '}
-                    <strong className="text-white">.xlsx</strong> de Siigo sin arreglar, y elige el rango de fechas.
+                    Sube el extracto de <strong className="text-white">Caja Social</strong> y el auxiliar de{' '}
+                    <strong className="text-white">Siigo</strong>, y elige el rango de fechas.
                   </div>
 
                   {/* Zonas de upload */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <UploadZone
                       accept=".xlsx"
-                      label="Extracto Caja Social"
+                      label="Banco Caja Social"
                       sublabel=".xlsx — nueva página web"
                       logo="/logos/CajaSocial.png"
                       file={bancoFile}
@@ -254,8 +254,8 @@ export default function CajaSocialNueva() {
                     />
                     <UploadZone
                       accept=".xlsx"
-                      label="Siigo sin arreglar"
-                      sublabel=".xlsx — mov. auxiliar por cuenta"
+                      label="Siigo"
+                      sublabel=".xlsx — auxiliar por cuenta"
                       logo="/logos/Siigo.png"
                       file={siigoFile}
                       onFile={setSiigoFile}

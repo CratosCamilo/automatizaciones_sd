@@ -247,15 +247,15 @@ export default function CtaAhorros() {
                     <UploadZone
                       accept=".xls,.xlsx"
                       label="Banco Caja Social"
-                      sublabel=".xls descargado del portal"
+                      sublabel=".xls — portal Caja Social"
                       logo="/logos/CajaSocial.png"
                       file={bancoFile}
                       onFile={setBancoFile}
                     />
                     <UploadZone
                       accept=".xlsx"
-                      label="Siigo sin arreglar"
-                      sublabel=".xlsx — mov. auxiliar por cuenta"
+                      label="Siigo"
+                      sublabel=".xlsx — auxiliar por cuenta"
                       logo="/logos/Siigo.png"
                       file={siigoFile}
                       onFile={setSiigoFile}

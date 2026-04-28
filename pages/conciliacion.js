@@ -253,16 +253,16 @@ export default function Conciliacion() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <UploadZone
                       accept=".zip"
-                      label="Archivo DIAN"
-                      sublabel=".zip descargado del portal DIAN"
+                      label="DIAN"
+                      sublabel=".zip — portal de la DIAN"
                       logo="/logos/Dian.png"
                       file={dianFile}
                       onFile={setDianFile}
                     />
                     <UploadZone
                       accept=".xlsx"
-                      label="Reporte Siigo"
-                      sublabel=".xlsx exportado de Siigo"
+                      label="Siigo"
+                      sublabel=".xlsx — exportado de Siigo"
                       logo="/logos/Siigo.png"
                       file={siigoFile}
                       onFile={setSiigoFile}

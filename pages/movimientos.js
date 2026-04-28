@@ -167,7 +167,7 @@ export default function Movimientos() {
   }
 
   return (
-    <Layout title="Movimientos Bancarios — Slendy Automatizaciones">
+    <Layout title="Bancos Semanal — Slendy Automatizaciones">
       {modal && <ModalComoFunciona onClose={() => setModal(false)} />}
       <div className="min-h-[calc(100vh-48px)] px-6 py-8">
         <div className="max-w-xl mx-auto">
@@ -176,7 +176,7 @@ export default function Movimientos() {
           <div className="flex items-center gap-2 text-xs text-secondary mb-6">
             <Link href="/" className="hover:text-white transition-colors">Inicio</Link>
             <span>/</span>
-            <span className="text-white">Movimientos Bancarios</span>
+            <span className="text-white">Bancos Semanal</span>
           </div>
 
           {/* Card principal */}
@@ -189,7 +189,7 @@ export default function Movimientos() {
                   <span className="text-2xl">🏦</span>
                   <div>
                     <h1 className="text-white font-semibold text-[17px] leading-tight">
-                      Movimientos Bancarios
+                      Bancos Semanal
                     </h1>
                     <p className="text-secondary text-xs mt-0.5">
                       Caja Social + Bancolombia organizados por día
@@ -225,17 +225,17 @@ export default function Movimientos() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <UploadZone
                       accept=".xlsx"
-                      label="Archivo banco 1"
-                      sublabel=".xlsx de Caja Social o Bancolombia"
-                      logo={['/logos/CajaSocial.png', '/logos/Bancolombia.png']}
+                      label="Banco Caja Social"
+                      sublabel=".xlsx — portal Caja Social"
+                      logo="/logos/CajaSocial.png"
                       file={archivo1}
                       onFile={setArchivo1}
                     />
                     <UploadZone
                       accept=".xlsx"
-                      label="Archivo banco 2"
-                      sublabel=".xlsx de Caja Social o Bancolombia"
-                      logo={['/logos/CajaSocial.png', '/logos/Bancolombia.png']}
+                      label="Bancolombia"
+                      sublabel=".xlsx — portal Bancolombia"
+                      logo="/logos/Bancolombia.png"
                       file={archivo2}
                       onFile={setArchivo2}
                     />
