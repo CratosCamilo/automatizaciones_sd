@@ -5,35 +5,50 @@ const MODULOS = [
   {
     id: 'conciliacion',
     href: '/conciliacion',
-    icon: '🧾',
+    logos: [
+      { src: '/logos/Dian.png',  alt: 'DIAN'  },
+      { src: '/logos/Siigo.png', alt: 'Siigo' },
+    ],
     nombre: 'Conciliación DIAN vs Siigo',
     descripcion: 'Cruza las facturas de la DIAN con Siigo e identifica las que faltan.',
   },
   {
     id: 'movimientos',
     href: '/movimientos',
-    icon: '🏦',
+    logos: [
+      { src: '/logos/CajaSocial.png',  alt: 'Banco Caja Social' },
+      { src: '/logos/Bancolombia.png', alt: 'Bancolombia'       },
+    ],
     nombre: 'Bancos Semanal',
     descripcion: 'Organiza los movimientos de Caja Social y Bancolombia por día y semana.',
   },
   {
     id: 'davivienda',
     href: '/davivienda',
-    icon: '💳',
+    logos: [
+      { src: '/logos/Davivienda.png', alt: 'Davivienda' },
+      { src: '/logos/Redeban.webp',   alt: 'Redeban'    },
+    ],
     nombre: 'Davivienda Quincenal',
     descripcion: 'Cruza los QR de Davivienda con Redeban y arma el reporte quincenal.',
   },
   {
     id: 'cta-ahorros',
     href: '/cta-ahorros',
-    icon: '💰',
+    logos: [
+      { src: '/logos/CajaSocial.png', alt: 'Banco Caja Social' },
+      { src: '/logos/Siigo.png',      alt: 'Siigo'             },
+    ],
     nombre: 'Cta Ahorros Caja Social',
     descripcion: 'Concilia la cuenta de ahorros de Caja Social con Siigo por débitos y créditos.',
   },
   {
     id: 'caja-social-nueva',
     href: '/caja-social-nueva',
-    icon: '🏛️',
+    logos: [
+      { src: '/logos/CajaSocial.png', alt: 'Banco Caja Social' },
+      { src: '/logos/Siigo.png',      alt: 'Siigo'             },
+    ],
     nombre: 'Caja Social Mensual',
     descripcion: 'Concilia el extracto XLSX de la nueva página de Caja Social con Siigo.',
   },

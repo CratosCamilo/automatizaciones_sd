@@ -248,7 +248,7 @@ export default function CajaSocialNueva() {
                       accept=".xlsx"
                       label="Extracto Caja Social"
                       sublabel=".xlsx — nueva página web"
-                      icon="🏛️"
+                      logo="/logos/CajaSocial.png"
                       file={bancoFile}
                       onFile={setBancoFile}
                     />
@@ -256,7 +256,7 @@ export default function CajaSocialNueva() {
                       accept=".xlsx"
                       label="Siigo sin arreglar"
                       sublabel=".xlsx — mov. auxiliar por cuenta"
-                      icon="📊"
+                      logo="/logos/Siigo.png"
                       file={siigoFile}
                       onFile={setSiigoFile}
                     />

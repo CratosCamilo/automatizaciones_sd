@@ -255,7 +255,7 @@ export default function Conciliacion() {
                       accept=".zip"
                       label="Archivo DIAN"
                       sublabel=".zip descargado del portal DIAN"
-                      icon="🗜️"
+                      logo="/logos/Dian.png"
                       file={dianFile}
                       onFile={setDianFile}
                     />
@@ -263,7 +263,7 @@ export default function Conciliacion() {
                       accept=".xlsx"
                       label="Reporte Siigo"
                       sublabel=".xlsx exportado de Siigo"
-                      icon="📊"
+                      logo="/logos/Siigo.png"
                       file={siigoFile}
                       onFile={setSiigoFile}
                     />

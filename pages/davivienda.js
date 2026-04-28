@@ -233,7 +233,7 @@ export default function Davivienda() {
                       accept=".xlsx"
                       label="Davivienda"
                       sublabel=".xlsx descargado del banco"
-                      icon="📄"
+                      logo="/logos/Davivienda.png"
                       file={davFile}
                       onFile={setDavFile}
                     />
@@ -241,7 +241,7 @@ export default function Davivienda() {
                       accept=".csv"
                       label="Redeban QR"
                       sublabel=".csv de consulta de transacciones"
-                      icon="🧾"
+                      logo="/logos/Redeban.webp"
                       file={redebanFile}
                       onFile={setRbFile}
                     />

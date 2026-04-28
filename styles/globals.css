@@ -133,6 +133,71 @@
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   }
+
+  /* ── Module logo chips (dashboard cards) ─────────────── */
+  .module-logo-chip {
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 6px;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    transition: transform 280ms ease, box-shadow 280ms ease, opacity 280ms ease;
+    opacity: 0.78;
+  }
+
+  .module-logo-chip img {
+    width: 56px;
+    height: 24px;
+    object-fit: contain;
+  }
+
+  .module-card:hover .module-logo-chip {
+    opacity: 1;
+    box-shadow: 0 2px 14px rgba(0, 196, 212, 0.45);
+  }
+
+  .module-card:hover .module-logo-chip.chip-left {
+    transform: translateX(-5px);
+  }
+
+  .module-card:hover .module-logo-chip.chip-right {
+    transform: translateX(5px);
+  }
+
+  /* ── Upload zone logo chip ───────────────────────────── */
+  .upload-logo {
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 10px;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    transition: opacity 220ms ease, transform 220ms ease,
+                background 220ms ease, box-shadow 220ms ease;
+    opacity: 0.58;
+  }
+
+  .upload-logo img {
+    width: 112px;
+    height: 46px;
+    object-fit: contain;
+  }
+
+  .upload-logo.upload-logo-sm img {
+    width: 72px;
+    height: 34px;
+  }
+
+  .upload-zone:hover .upload-logo,
+  .upload-zone.dragging .upload-logo {
+    opacity: 1;
+    background: white;
+    transform: scale(1.05);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  }
 }
 
 @layer utilities {

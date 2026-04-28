@@ -1,6 +1,20 @@
 import { useRef, useState } from 'react'
 
-export default function UploadZone({ accept, label, sublabel, icon, file, onFile }) {
+function LogoChip({ logo }) {
+  const logos = Array.isArray(logo) ? logo : [logo]
+  const isMultiple = logos.length > 1
+  return (
+    <div className={isMultiple ? 'flex items-center gap-2' : ''}>
+      {logos.map((src, i) => (
+        <div key={i} className={`upload-logo${isMultiple ? ' upload-logo-sm' : ''}`}>
+          <img src={src} alt="Logo" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export default function UploadZone({ accept, label, sublabel, icon, logo, file, onFile }) {
   const inputRef = useRef(null)
   const [dragging, setDragging] = useState(false)
 
@@ -45,7 +59,7 @@ export default function UploadZone({ accept, label, sublabel, icon, file, onFile
         </>
       ) : (
         <>
-          <span className="text-4xl opacity-70">{icon}</span>
+          {logo ? <LogoChip logo={logo} /> : <span className="text-4xl opacity-70">{icon}</span>}
           <div className="text-center">
             <p className="text-white font-semibold text-[14px]">{label}</p>
             <p className="text-secondary text-xs mt-1">{sublabel}</p>

@@ -227,7 +227,7 @@ export default function Movimientos() {
                       accept=".xlsx"
                       label="Archivo banco 1"
                       sublabel=".xlsx de Caja Social o Bancolombia"
-                      icon="📄"
+                      logo={['/logos/CajaSocial.png', '/logos/Bancolombia.png']}
                       file={archivo1}
                       onFile={setArchivo1}
                     />
@@ -235,7 +235,7 @@ export default function Movimientos() {
                       accept=".xlsx"
                       label="Archivo banco 2"
                       sublabel=".xlsx de Caja Social o Bancolombia"
-                      icon="📄"
+                      logo={['/logos/CajaSocial.png', '/logos/Bancolombia.png']}
                       file={archivo2}
                       onFile={setArchivo2}
                     />
