@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Layout from '../components/Layout'
 import UploadZone from '../components/UploadZone'
+import DateRangePicker from '../components/DateRangePicker'
 
 function ModalComoFunciona({ onClose }) {
   return (
@@ -262,31 +263,13 @@ export default function CtaAhorros() {
                   </div>
 
                   {/* Rango de fechas */}
-                  <div>
-                    <p className="text-secondary text-xs font-medium mb-3 uppercase tracking-wider">
-                      Rango de fechas
-                    </p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-secondary text-xs">Desde</label>
-                        <input
-                          type="date"
-                          value={fechaIni}
-                          onChange={e => setFechaIni(e.target.value)}
-                          className="date-input"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-secondary text-xs">Hasta</label>
-                        <input
-                          type="date"
-                          value={fechaFin}
-                          onChange={e => setFechaFin(e.target.value)}
-                          className="date-input"
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  <DateRangePicker
+                    fechaIni={fechaIni}
+                    setFechaIni={setFechaIni}
+                    fechaFin={fechaFin}
+                    setFechaFin={setFechaFin}
+                    grupo="mensual"
+                  />
 
                   {/* Botón procesar */}
                   <button
