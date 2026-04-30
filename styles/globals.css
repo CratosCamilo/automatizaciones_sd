@@ -53,6 +53,17 @@
     background: rgba(0, 196, 212, 0.08);
   }
 
+  .upload-zone.upload-zone-error {
+    border-color: rgba(239, 83, 80, 0.5);
+    border-style: solid;
+    background: rgba(239, 83, 80, 0.08);
+  }
+
+  .upload-zone.upload-zone-error:hover {
+    border-color: rgba(239, 83, 80, 0.75);
+    background: rgba(239, 83, 80, 0.12);
+  }
+
   /* ── Spinner ─────────────────────────────────────────── */
   .spinner {
     width: 40px;

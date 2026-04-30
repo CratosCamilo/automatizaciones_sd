@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler
 import base64
 import io
 import json
+import unicodedata
 from collections import defaultdict
 from datetime import datetime, date
 
@@ -43,6 +44,60 @@ def _detectar_banco(wb):
             if cell and 'Titular' in str(cell):
                 return 'cajasocial'
     return 'bancolombia'
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VALIDACIÓN (se ejecuta antes de procesar; lanza ValueError si algo falta)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _norm(s):
+    """Minúsculas sin tildes para comparación flexible."""
+    if s is None:
+        return ''
+    n = unicodedata.normalize('NFKD', str(s)).encode('ascii', 'ignore').decode()
+    return n.lower().strip()
+
+
+def _validar_cajasocial(wb):
+    ws = wb['AccountMovementsExtended']
+    # Fila 10 es el encabezado (filas 1-9 son metadatos del reporte)
+    header_row = list(ws.iter_rows(min_row=10, max_row=10, values_only=True))[0]
+
+    # índice 0-based → col B=1 (Fecha), col F=5 (Débito), col G=6 (Crédito)
+    esperadas = {1: ('fecha', 'Fecha'), 5: ('deb', 'Débito'), 6: ('cred', 'Crédito')}
+    errores = []
+    for idx, (fragmento, nombre) in esperadas.items():
+        val = header_row[idx] if len(header_row) > idx else None
+        if fragmento not in _norm(val):
+            errores.append(f'columna {chr(65 + idx)} tiene "{val}", se esperaba "{nombre}"')
+
+    if errores:
+        disponibles = [f'{chr(65+i)}="{v}"' for i, v in enumerate(header_row) if v is not None]
+        raise ValueError(
+            f'Caja Social: formato inesperado — {"; ".join(errores)}. '
+            f'Encabezado fila 10: {disponibles}'
+        )
+
+
+def _validar_bancolombia(wb):
+    ws = wb['Hoja 1']
+    header_row = list(ws.iter_rows(min_row=1, max_row=1, values_only=True))[0]
+
+    # índice 0-based → col A=0 (Fecha), B=1 (Descripción), C=2 (Referencia), D=3 (Valor)
+    esperadas = {0: ('fecha', 'Fecha'), 1: ('descri', 'Descripción'),
+                 2: ('refer', 'Referencia'), 3: ('valor', 'Valor')}
+    errores = []
+    for idx, (fragmento, nombre) in esperadas.items():
+        val = header_row[idx] if len(header_row) > idx else None
+        if fragmento not in _norm(val):
+            errores.append(f'columna {chr(65 + idx)} tiene "{val}", se esperaba "{nombre}"')
+
+    if errores:
+        disponibles = [f'{chr(65+i)}="{v}"' for i, v in enumerate(header_row) if v is not None]
+        raise ValueError(
+            f'Bancolombia: formato inesperado — {"; ".join(errores)}. '
+            f'Encabezado fila 1: {disponibles}'
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -321,6 +376,9 @@ class handler(BaseHTTPRequestHandler):
                 return self._error(400,
                     f'No se identificaron los dos bancos. '
                     f'Detectado: archivo1={banco1}, archivo2={banco2}')
+
+            _validar_cajasocial(wb_cs)
+            _validar_bancolombia(wb_bc)
 
             rows_cs = procesar_cajasocial(wb_cs, fecha_ini, fecha_fin)
             rows_bc = procesar_bancolombia(wb_bc, fecha_ini, fecha_fin)

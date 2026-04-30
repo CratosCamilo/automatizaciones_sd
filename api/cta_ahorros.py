@@ -1,5 +1,5 @@
 from http.server import BaseHTTPRequestHandler
-import json, base64, io
+import json, base64, io, unicodedata
 from datetime import datetime, date
 from collections import defaultdict
 
@@ -409,6 +409,83 @@ def generar_excel(banco_raw_headers, banco_raw_rows,
     return buf.getvalue(), filename
 
 
+# ── VALIDACIÓN (antes de procesar) ───────────────────────────────────────────
+def _norm_s(s):
+    """Minúsculas sin tildes para comparación flexible."""
+    if s is None:
+        return ''
+    n = unicodedata.normalize('NFKD', str(s)).encode('ascii', 'ignore').decode()
+    return n.lower().strip()
+
+
+def _validar_banco_sylk(banco_bytes):
+    grid = parse_sylk(banco_bytes)
+    if not grid:
+        raise ValueError(
+            'Banco (SYLK): El archivo no contiene datos. '
+            'Verificá que subiste el extracto correcto de Caja Social.'
+        )
+    max_row = max(r for r, c in grid)
+    if max_row < 3:
+        raise ValueError(
+            'Banco (SYLK): El archivo tiene muy pocas filas. '
+            'Verificá que el extracto de Caja Social no está vacío.'
+        )
+    # Fila 2 contiene los encabezados; cols críticas: 2=Fecha, 3=Descripción, 4=Valor, 7=Tipo
+    esperadas = {2: 'fecha', 3: 'desc', 4: 'valor', 7: 'tipo'}
+    errores = []
+    for col, fragmento in esperadas.items():
+        val = grid.get((2, col), '')
+        if fragmento not in _norm_s(val):
+            errores.append(f'col {col} tiene "{val}", se esperaba algo con "{fragmento}"')
+    if errores:
+        fila2 = {c: grid.get((2, c), '') for c in range(2, 11) if grid.get((2, c))}
+        raise ValueError(
+            f'Banco (SYLK): Encabezados inesperados — {"; ".join(errores)}. '
+            f'Fila 2 del archivo: {fila2}'
+        )
+
+
+def _validar_siigo_cta(siigo_bytes):
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(siigo_bytes), data_only=True)
+    ws = wb.active
+
+    header_row = None
+    for r in range(1, ws.max_row + 1):
+        val = ws.cell(r, 3).value
+        if val and str(val).strip() == 'Comprobante':
+            header_row = r
+            break
+    if header_row is None:
+        raise ValueError(
+            "Siigo: No se encontró 'Comprobante' en columna C. "
+            "Verificá que el archivo es el reporte correcto exportado desde Siigo."
+        )
+
+    num_cols = ws.max_column
+    if num_cols < 14:
+        raise ValueError(
+            f'Siigo: Se esperan al menos 14 columnas, el archivo tiene {num_cols}. '
+            f'Verificá que es el reporte de Siigo completo.'
+        )
+
+    h13 = ws.cell(header_row, 13).value  # columna M — debe ser Débito
+    h14 = ws.cell(header_row, 14).value  # columna N — debe ser Crédito
+    errores = []
+    if 'deb' not in _norm_s(h13):
+        errores.append(f'col M (13) tiene "{h13}", se esperaba "Débito"')
+    if 'cred' not in _norm_s(h14):
+        errores.append(f'col N (14) tiene "{h14}", se esperaba "Crédito"')
+
+    if errores:
+        disponibles = [ws.cell(header_row, c).value for c in range(1, num_cols + 1)]
+        raise ValueError(
+            f'Siigo: Columnas de montos inesperadas — {"; ".join(errores)}. '
+            f'Encabezados disponibles: {disponibles}'
+        )
+
+
 # ── HANDLER VERCEL ────────────────────────────────────────────────────────────
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -424,6 +501,9 @@ class handler(BaseHTTPRequestHandler):
             banco_bytes, siigo_bytes = detectar_archivos(
                 base64.b64decode(f1), base64.b64decode(f2)
             )
+
+            _validar_banco_sylk(banco_bytes)
+            _validar_siigo_cta(siigo_bytes)
 
             fecha_ini = datetime.strptime(body["fecha_inicio"], "%Y-%m-%d").date()
             fecha_fin = datetime.strptime(body["fecha_fin"],    "%Y-%m-%d").date()

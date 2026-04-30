@@ -1,4 +1,4 @@
-import json, base64, math
+import json, base64, math, unicodedata
 from datetime import datetime, date as date_type
 from io import BytesIO
 from http.server import BaseHTTPRequestHandler
@@ -405,6 +405,101 @@ def calcular_resumen(debito_rows, credito_rows, siigo_credito, siigo_debito):
     }
 
 
+# ── Validación (antes de procesar) ───────────────────────────────────────────
+def _norm_csn(s):
+    if s is None:
+        return ''
+    n = unicodedata.normalize('NFKD', str(s)).encode('ascii', 'ignore').decode()
+    return n.lower().strip()
+
+
+def _validar_banco_csn(data_b64):
+    """Valida que el archivo del banco tenga la fila de encabezados con las
+    columnas críticas. Lanza ValueError con mensaje descriptivo si algo falta."""
+    wb = openpyxl.load_workbook(BytesIO(base64.b64decode(data_b64)), data_only=True)
+    ws = wb.active
+
+    header_found = False
+    fecha_i = deb_i = cred_i = desc_i = None
+
+    for row in ws.iter_rows(values_only=True):
+        vals = [str(c).lower() if c else '' for c in row]
+        if any('fecha' in v for v in vals) and any('bito' in v for v in vals):
+            header_found = True
+            for i, v in enumerate(vals):
+                if 'fecha' in v and fecha_i is None:
+                    fecha_i = i
+                elif 'escripci' in v and desc_i is None:
+                    desc_i = i
+                elif 'bito' in v and 'cr' not in v and deb_i is None:
+                    deb_i = i
+                elif 'r' in v and 'dito' in v and cred_i is None:
+                    cred_i = i
+            encontradas = [str(c) for c in row if c is not None]
+            break
+
+    if not header_found:
+        raise ValueError(
+            'Banco Caja Social: No se encontró la fila de encabezados. '
+            'Verificá que el archivo es el extracto correcto descargado de Caja Social.'
+        )
+
+    faltantes = []
+    if fecha_i is None:
+        faltantes.append('Fecha')
+    if deb_i is None:
+        faltantes.append('Débito')
+    if cred_i is None:
+        faltantes.append('Crédito')
+
+    if faltantes:
+        raise ValueError(
+            f'Banco Caja Social: Columnas no encontradas: {faltantes}. '
+            f'Encabezados disponibles: {encontradas}'
+        )
+
+
+def _validar_siigo_csn(data_b64):
+    """Valida que el archivo de Siigo tenga 'Comprobante' en col C y columnas
+    de Débito/Crédito en las posiciones esperadas (cols 13 y 14)."""
+    wb = openpyxl.load_workbook(BytesIO(base64.b64decode(data_b64)), data_only=True)
+    ws = wb.active
+
+    header_row = None
+    for r in range(1, ws.max_row + 1):
+        val = ws.cell(r, 3).value
+        if val and str(val).strip() == 'Comprobante':
+            header_row = r
+            break
+    if header_row is None:
+        raise ValueError(
+            "Siigo: No se encontró 'Comprobante' en columna C. "
+            "Verificá que el archivo es el reporte correcto exportado desde Siigo."
+        )
+
+    num_cols = ws.max_column
+    if num_cols < 14:
+        raise ValueError(
+            f'Siigo: Se esperan al menos 14 columnas, el archivo tiene {num_cols}. '
+            f'Verificá que es el reporte de Siigo completo.'
+        )
+
+    h13 = ws.cell(header_row, 13).value  # col M — debe ser Débito
+    h14 = ws.cell(header_row, 14).value  # col N — debe ser Crédito
+    errores = []
+    if 'deb' not in _norm_csn(h13):
+        errores.append(f'col M (13) tiene "{h13}", se esperaba "Débito"')
+    if 'cred' not in _norm_csn(h14):
+        errores.append(f'col N (14) tiene "{h14}", se esperaba "Crédito"')
+
+    if errores:
+        disponibles = [ws.cell(header_row, c).value for c in range(1, num_cols + 1)]
+        raise ValueError(
+            f'Siigo: Columnas de montos inesperadas — {"; ".join(errores)}. '
+            f'Encabezados disponibles: {disponibles}'
+        )
+
+
 # ── HTTP Handler ──────────────────────────────────────────────────────────────
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -413,6 +508,9 @@ class handler(BaseHTTPRequestHandler):
 
         try:
             ini, fin = _parse_rango(body["fecha_inicio"], body["fecha_fin"])
+
+            _validar_banco_csn(body["banco_b64"])
+            _validar_siigo_csn(body["siigo_b64"])
 
             debito_rows, credito_rows   = leer_banco(body["banco_b64"], ini, fin)
             siigo_credito, siigo_debito = leer_siigo(body["siigo_b64"], ini, fin)

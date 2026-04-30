@@ -79,6 +79,62 @@ def _borde():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# VALIDACIÓN (se ejecuta antes de procesar; lanza ValueError si algo falta)
+# ─────────────────────────────────────────────────────────────────────────────
+
+DIAN_CRITICAS  = ['Prefijo', 'Folio', 'IVA', 'Total']
+SIIGO_CRITICAS = ['Comprobante', 'Factura proveedor', 'Total', 'Nombre tercero', 'IVA']
+
+
+def _validar_dian(zip_bytes):
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+        xlsx_names = [n for n in zf.namelist() if n.lower().endswith('.xlsx')]
+        if not xlsx_names:
+            raise ValueError('No se encontró ningún .xlsx dentro del ZIP de la DIAN')
+        xlsx_data = zf.read(xlsx_names[0])
+
+    wb = openpyxl.load_workbook(io.BytesIO(xlsx_data), read_only=True)
+    ws = wb.active
+    headers = [str(c.value).strip() if c.value is not None else ''
+               for c in next(ws.iter_rows(min_row=1, max_row=1))]
+    wb.close()
+
+    faltantes = [c for c in DIAN_CRITICAS if c not in headers]
+    if faltantes:
+        disponibles = [h for h in headers if h]
+        raise ValueError(
+            f'DIAN: Columnas críticas no encontradas: {faltantes}. '
+            f'Disponibles: {disponibles}'
+        )
+
+
+def _validar_siigo(xlsx_bytes):
+    wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes))
+    ws = wb.active
+    all_rows = list(ws.values)
+
+    header_idx = None
+    for i, row in enumerate(all_rows):
+        if row and str(row[0]).strip() == 'Comprobante':
+            header_idx = i
+            break
+    if header_idx is None:
+        raise ValueError(
+            "Siigo: No se encontró 'Comprobante' como encabezado. "
+            "Verificá que el archivo es el reporte correcto exportado desde Siigo."
+        )
+
+    headers = [str(h).strip() if h is not None else '' for h in all_rows[header_idx]]
+    faltantes = [c for c in SIIGO_CRITICAS if c not in headers]
+    if faltantes:
+        disponibles = [h for h in headers if h]
+        raise ValueError(
+            f'Siigo: Columnas críticas no encontradas: {faltantes}. '
+            f'Disponibles: {disponibles}'
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # PROCESAMIENTO DIAN
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -316,6 +372,9 @@ class handler(BaseHTTPRequestHandler):
 
             zip_bytes  = base64.b64decode(data['dian'])
             xlsx_bytes = base64.b64decode(data['siigo'])
+
+            _validar_dian(zip_bytes)
+            _validar_siigo(xlsx_bytes)
 
             df_dian, sheet_name = procesar_dian(zip_bytes)
             df_siigo = procesar_siigo(xlsx_bytes)
