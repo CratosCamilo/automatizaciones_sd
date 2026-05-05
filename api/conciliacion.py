@@ -217,10 +217,12 @@ def generar_output(df_dian, df_siigo, sheet_name):
     siigo_ordered = ['Total'] + [c for c in siigo_cols if c != 'Total']
 
     siigo_lookup = {}
-    for _, row in df_siigo.iterrows():
+    siigo_lookup_idx = {}
+    for idx, row in df_siigo.iterrows():
         fp = str(row.get('Factura proveedor', '') or '').strip()
         if fp:
             siigo_lookup[fp] = row
+            siigo_lookup_idx[fp] = idx
 
     dian_cols = list(df_dian.columns)
     df_w = df_dian.copy()
@@ -230,10 +232,13 @@ def generar_output(df_dian, df_siigo, sheet_name):
     dian_only = df_w[~df_w['_matched']].sort_values('Total', ascending=False)
     matched   = df_w[ df_w['_matched']].sort_values('Total', ascending=False)
 
-    dian_keys   = set(df_w['_key'])
-    siigo_extra = df_siigo[
-        ~df_siigo['Factura proveedor'].fillna('').str.strip().isin(dian_keys)
-    ].sort_values('Total', ascending=False)
+    consumed = set()
+    for _, row in matched.iterrows():
+        key = row['_key']
+        if key in siigo_lookup_idx:
+            consumed.add(siigo_lookup_idx[key])
+
+    siigo_extra = df_siigo[~df_siigo.index.isin(consumed)].sort_values('Total', ascending=False)
 
     n_dian_only  = len(dian_only)
     n_siigo_only = len(siigo_extra)

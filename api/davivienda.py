@@ -30,7 +30,7 @@ FMT_NUM   = '_-* #,##0.00_-;\\-* #,##0.00_-;_-* "-"??_-;_-@_-'
 RED       = 'FFFF0000'
 HEADER_BG = 'FFB2AEAE'
 
-LLAVE_KEY = 'Pago A Llave De Comercio'
+LLAVE_KEYS = {'Pago A Llave De Comercio', 'Pago A Llave Comercio'}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -182,7 +182,7 @@ def aplicar_nombres(dav_rows, redeban_entries):
 
     matched = unmatched = 0
     for r in dav_rows:
-        if r['desc'].strip() != LLAVE_KEY:
+        if r['desc'].strip() not in LLAVE_KEYS:
             continue
         key = _match_key(r['fecha'], r['valor'])
         if bucket[key]:
