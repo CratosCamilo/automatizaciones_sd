@@ -60,8 +60,8 @@ def _norm(s):
 
 def _validar_cajasocial(wb):
     ws = wb['AccountMovementsExtended']
-    # Fila 10 es el encabezado (filas 1-9 son metadatos del reporte)
-    header_row = list(ws.iter_rows(min_row=10, max_row=10, values_only=True))[0]
+    # Fila 9 es el encabezado (filas 1-8 son metadatos del reporte)
+    header_row = list(ws.iter_rows(min_row=9, max_row=9, values_only=True))[0]
 
     # índice 0-based → col B=1 (Fecha), col F=5 (Débito), col G=6 (Crédito)
     esperadas = {1: ('fecha', 'Fecha'), 5: ('deb', 'Débito'), 6: ('cred', 'Crédito')}
