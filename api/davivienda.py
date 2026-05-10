@@ -16,6 +16,7 @@ import base64
 import csv
 import io
 import json
+import re
 from collections import defaultdict
 from datetime import datetime, date
 
@@ -31,6 +32,25 @@ RED       = 'FFFF0000'
 HEADER_BG = 'FFB2AEAE'
 
 LLAVE_KEYS = {'Pago A Llave De Comercio', 'Pago A Llave Comercio'}
+
+# Nombres abreviados que Redeban envía → apodo corto para identificar rápido.
+# La clave es los tokens alfabéticos del nombre, en mayúsculas, separados por espacio.
+ALIAS_MAP = {
+    'CAR ALB PLA PIM': 'POLLO',
+    'SUL LAU VID SAN': 'WALDIR',
+    'YOL PEN GUT':     'ENRIQUE',
+    'UIL DE JES OSO':  'PAISA',
+    'BLA NID OCA OCA': 'NIDIA',
+    'LEA DAV LAM BAR': 'LEAN/DAVID',
+    'JUL ALE ROD CAS': 'JULIAN',
+    'WEN JOH ORT LOP': 'GUSTAVO',
+    'CAR BON':         'FERNANDO',
+}
+
+
+def _alias_key(s):
+    """'CAR*** ALB*** PLA*** PIM***' → 'CAR ALB PLA PIM' (para buscar en ALIAS_MAP)."""
+    return ' '.join(t.upper() for t in re.findall(r'[A-Za-z]+', s))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -195,6 +215,14 @@ def aplicar_nombres(dav_rows, redeban_entries):
     return matched, unmatched, extras
 
 
+def aplicar_alias(rows):
+    """Reemplaza nombres abreviados de Redeban (CAR*** ALB***…) por apodos cortos."""
+    for r in rows:
+        alias = ALIAS_MAP.get(_alias_key(r['desc']))
+        if alias:
+            r['desc'] = alias
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # ESCRITURA XLSX
 # ─────────────────────────────────────────────────────────────────────────────
@@ -288,6 +316,7 @@ class handler(BaseHTTPRequestHandler):
             redeban_entries = parse_redeban(csv_bytes, fecha_ini, fecha_fin)
 
             matched, unmatched, extras = aplicar_nombres(dav_rows, redeban_entries)
+            aplicar_alias(dav_rows)
             output = generar_excel(dav_rows)
 
             mes = MESES.get(fecha_ini.month, str(fecha_ini.month))
