@@ -324,24 +324,28 @@ Concilia la cuenta de ahorros de Caja Social con Siigo. Genera tres hojas:
 
 | Archivo | Formato | Origen |
 |---------|---------|--------|
-| Extracto Caja Social | `.xls` | Descargado del portal Banco Caja Social. **Formato interno SYLK PWXL** (no es XLS real). |
+| Extracto Caja Social | `.xlsx` | Descargado del portal Banco Caja Social (`MovimientosDeCuenta.xlsx`). Hoja interna `AccountMovementsExtended`. |
 | Reporte Siigo | `.xlsx` | Exportado desde Siigo. Encabezado dinámico (primera fila con "Código contable" en col C). |
 | Fecha inicio | parámetro | Inclusive. |
 | Fecha fin | parámetro | Inclusive. |
+
+> **Nota:** Hasta junio 2026 Caja Social entregaba el extracto como `.xls` en formato interno SYLK PWXL. Migraron a `.xlsx` real (hoja `AccountMovementsExtended`) con débito y crédito en columnas separadas y montos en formato colombiano (`'1.234.567,00'`). Ya no envían las columnas Saldo, Regional/Oficina, Tipo Transacción ni Ref. Titular Cuenta.
 
 ---
 
 ### Lógica de procesamiento
 
-#### Banco (SYLK PWXL)
-1. El archivo `.xls` tiene cabecera `ID;PWXL;N;E` — se parsea manualmente línea a línea.
-2. Las líneas `C;` definen valores de celda; las líneas `F;` actualizan el puntero de columna (cur_col) sin escribir valor.
-3. **Columnas usadas**: col 2 = Fecha Transacción, col 3 = Descripción, col 4 = Valor, col 7 = Tipo Transacción.
-4. Se descartan filas con descripción `SALDO INICIAL` o `SALDO FINAL`.
-5. Se filtra por rango de fechas.
-6. Filas positivas (Valor > 0) → `positivos_banco`.
-7. Filas negativas (Valor < 0) → `negativos_banco`, excluyendo los **tipos impuesto**:
-   - N005 (RETEFUENTE), N328 (RETEICA), N023 (ND COMISION ADQUIRENCIA), N467 (DESC COMISION T-DEB), N001 (GRAVAMEN MOVS FINANCIEROS).
+#### Banco (XLSX `AccountMovementsExtended`)
+1. Se abre la hoja `AccountMovementsExtended`.
+2. La fila de encabezado se localiza dinámicamente buscando la primera fila que contenga simultáneamente "Fecha" y "Débito" (filas 1–8 son metadata del reporte).
+3. **Columnas usadas**: Fecha (B), Descripción (C), Documento (E), Débito (F), Crédito (G), Oficina (J), Información Adicional (L).
+4. Los montos vienen como strings en formato colombiano (`'1.234.567,00'`); se parsean a float quitando puntos y cambiando coma por punto.
+5. Se descartan filas con descripción `SALDO INICIAL` o `SALDO FINAL`.
+6. Se calcula `Valor = Crédito − Débito` (signo): positivo = entrada, negativo = salida.
+7. Se filtra por rango de fechas.
+8. Filas positivas (Valor > 0) → `positivos_banco`.
+9. Filas negativas (Valor < 0) → `negativos_banco`, excluyendo los **impuestos** por descripción (el nuevo extracto ya no trae "Tipo Transacción"):
+   - DESC COMISION POR VENTAS T-DEB, GRAVAMEN MOVS FINANCIEROS, ND COMISION ADQUIRENCIA TC, RETEFUENTE VTAS TARCREDIT, NOTA DEBITO RETEICA.
 
 #### Siigo (XLSX)
 1. Detectar dinámicamente la fila de encabezado: primera fila donde col C == `"Comprobante"`.
@@ -420,9 +424,8 @@ siigo_creditos:   N créditos Siigo (excl. CC-10 sin match)
 ---
 
 ### Notas y excepciones conocidas
-- El archivo `.xls` de Caja Social no es XLS real — es formato SYLK PWXL. Se parsea manualmente.
-- Las líneas `F;` en SYLK también actualizan el puntero de columna; ignorarlas causaría que los valores queden en la columna equivocada.
-- Los tipos de impuesto (N005, N328, N023, N467, N001) se excluyen de los negativos y por eso sus CC-10 correspondientes en Siigo tampoco aparecen en CREDITO.
+- El extracto migró del antiguo `.xls` SYLK PWXL al `.xlsx` real con hoja `AccountMovementsExtended`. Hoja1 conserva los 9 encabezados originales para que el output luzca igual; las columnas que el nuevo archivo no entrega (Saldo, Regional/Oficina, Tipo Transacción, Ref. Titular Cuenta) quedan en blanco. Ref. Titular Cuenta se rellena con el nuevo campo "Documento".
+- Los impuestos automáticos antes se identificaban por código (N005/N328/N023/N467/N001); ahora se identifican por descripción (`DESC COMISION POR VENTAS T-DEB`, `GRAVAMEN MOVS FINANCIEROS`, `ND COMISION ADQUIRENCIA TC`, `RETEFUENTE VTAS TARCREDIT`, `NOTA DEBITO RETEICA`). El mapeo es 1-a-1.
 - Si un CC-10 de Siigo no tiene contrapartida bancaria con el mismo valor, se descarta (no se muestra en ninguna hoja del output).
 
 ---

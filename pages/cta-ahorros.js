@@ -44,8 +44,9 @@ function ModalComoFunciona({ onClose }) {
             <h3 className="text-white font-semibold mb-1.5">Archivos que necesita</h3>
             <div className="rounded-lg px-3 py-2.5 space-y-1.5" style={{ background: 'rgba(255,255,255,0.05)' }}>
               <p className="text-secondary text-xs">
-                — <strong className="text-white">Banco Caja Social (.xls)</strong>: extracto descargado
-                del portal. El sistema detecta el formato automáticamente.
+                — <strong className="text-white">Banco Caja Social (.xlsx)</strong>: extracto
+                descargado del portal (`MovimientosDeCuenta.xlsx`, hoja `AccountMovementsExtended`).
+                El sistema detecta el formato automáticamente.
               </p>
               <p className="text-secondary text-xs">
                 — <strong className="text-white">Siigo sin arreglar (.xlsx)</strong>: reporte
@@ -238,16 +239,16 @@ export default function CtaAhorros() {
                   {/* Instrucción */}
                   <div className="rounded-lg px-4 py-3 text-xs text-secondary leading-relaxed"
                        style={{ background: 'rgba(0,196,212,0.07)', border: '1px solid rgba(0,196,212,0.15)' }}>
-                    Sube el <strong className="text-white">.xls</strong> del banco Caja Social y el{' '}
+                    Sube el <strong className="text-white">.xlsx</strong> del banco Caja Social y el{' '}
                     <strong className="text-white">.xlsx</strong> de Siigo sin arreglar, y elige el mes a conciliar.
                   </div>
 
                   {/* Zonas de upload */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <UploadZone
-                      accept=".xls,.xlsx"
+                      accept=".xlsx"
                       label="Banco Caja Social"
-                      sublabel=".xls — portal Caja Social"
+                      sublabel=".xlsx — portal Caja Social"
                       logo="/logos/CajaSocial.png"
                       file={bancoFile}
                       onFile={setBancoFile}

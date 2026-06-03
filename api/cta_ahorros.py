@@ -3,9 +3,9 @@ import json, base64, io, unicodedata
 from datetime import datetime, date
 from collections import defaultdict
 
-TIPOS_EXCLUIDOS = {"N005", "N328", "N023", "N467", "N001"}
-
-# Descripciones de impuestos — mismo orden en que se muestran al final de CREDITO
+# Descripciones de impuestos — mismo orden en que se muestran al final de CREDITO.
+# Caja Social ya no entrega "Tipo Transacción" (ex N005/N328/N023/N467/N001):
+# ahora la única forma de identificar estos impuestos es por la descripción.
 IMPTOS_DESCS = [
     "DESC COMISION POR VENTAS T-DEB",
     "GRAVAMEN MOVS FINANCIEROS",
@@ -13,111 +13,218 @@ IMPTOS_DESCS = [
     "RETEFUENTE VTAS TARCREDIT",
     "NOTA DEBITO RETEICA",
 ]
+IMPTOS_SET = set(IMPTOS_DESCS)
+
+# Encabezados que mostramos en Hoja1 (se mantienen iguales al formato anterior
+# para que el output siga siendo familiar). Las columnas que el nuevo extracto
+# ya no trae (Saldo, Regional/Oficina, Tipo Transacción, Ref. Titular Cuenta)
+# quedan vacías.
+HOJA1_HEADERS = [
+    "Fecha Transacción", "Descripción", "Valor", "Saldo",
+    "Regional / Oficina", "Tipo Transacción", "Oficina",
+    "Ref. Titular Cuenta", "Detalles Adicionales",
+]
+
+BANCO_SHEET = "AccountMovementsExtended"
+
 
 # ── DETECCIÓN DE FORMATO ──────────────────────────────────────────────────────
-def es_sylk(data: bytes) -> bool:
-    return data[:20].startswith(b"ID;PWXL") or data[:4].startswith(b"ID;P")
+def _es_banco_xlsx(data: bytes) -> bool:
+    """Detecta el extracto de Caja Social por el nombre de la hoja interna."""
+    import openpyxl
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+        return BANCO_SHEET in wb.sheetnames
+    except Exception:
+        return False
 
 
 def detectar_archivos(bytes_a: bytes, bytes_b: bytes):
-    if es_sylk(bytes_a) and not es_sylk(bytes_b):
+    a_banco = _es_banco_xlsx(bytes_a)
+    b_banco = _es_banco_xlsx(bytes_b)
+    if a_banco and not b_banco:
         return bytes_a, bytes_b
-    if es_sylk(bytes_b) and not es_sylk(bytes_a):
+    if b_banco and not a_banco:
         return bytes_b, bytes_a
     raise ValueError(
-        "No se pudo identificar cuál archivo es el banco (SYLK) y cuál es Siigo (XLSX). "
-        "Verifica que subiste el extracto del banco y el reporte de Siigo."
+        "No se pudo identificar cuál archivo es el banco y cuál es Siigo. "
+        "El extracto de Caja Social debe ser un .xlsx con la hoja 'AccountMovementsExtended'."
     )
 
 
-# ── PARSER SYLK PWXL ─────────────────────────────────────────────────────────
-def parse_sylk(data: bytes):
-    try:
-        content = data.decode("latin-1")
-    except Exception:
-        content = data.decode("utf-8", errors="replace")
-
-    grid = {}
-    cur_row, cur_col = 1, 1
-    for raw_line in content.split("\n"):
-        line = raw_line.strip()
-        if line.startswith("C;"):
-            parts = line[2:].split(";")
-            for p in parts:
-                if p.startswith("Y"):   cur_row = int(p[1:])
-                elif p.startswith("X"): cur_col = int(p[1:])
-                elif p.startswith("K"):
-                    val = p[1:]
-                    if val.startswith('"') and val.endswith('"'):
-                        val = val[1:-1]
-                    grid[(cur_row, cur_col)] = val
-        elif line.startswith("F;"):
-            for p in line[2:].split(";"):
-                if p.startswith("X"): cur_col = int(p[1:])
-    return grid
-
-
+# ── HELPERS ───────────────────────────────────────────────────────────────────
 def parse_fecha(s):
-    if not s: return None
-    try:
-        return datetime.strptime(s.strip(), "%d/%m/%Y").date()
-    except Exception:
+    """Acepta string 'dd/mm/yyyy' o datetime/date."""
+    if s is None or s == "":
         return None
+    if isinstance(s, datetime):
+        return s.date()
+    if isinstance(s, date):
+        return s
+    s = str(s).strip()
+    if not s:
+        return None
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            pass
+    return None
 
 
-def to_num(s):
-    if not s: return 0.0
+def parse_monto_co(v):
+    """Parsea monto en formato colombiano '1.234.567,00' (string) o numérico → float.
+    Devuelve 0.0 si está vacío o no se puede parsear."""
+    if v is None or v == "":
+        return 0.0
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).strip()
+    if not s:
+        return 0.0
+    # Colombiano: puntos = miles, coma = decimales
+    cleaned = s.replace(".", "").replace(",", ".")
     try:
-        return float(str(s).strip().replace(",", "."))
-    except Exception:
+        return float(cleaned)
+    except ValueError:
         return 0.0
 
 
-def to_num_maybe(s):
-    if s is None or s == "": return ""
-    try:
-        f = float(str(s).strip().replace(",", "."))
-        return int(f) if f == int(f) else f
-    except Exception:
-        return s
+def _to_num_maybe(v):
+    """Devuelve int si es entero, float si tiene decimales, '' si está vacío."""
+    f = parse_monto_co(v)
+    if v is None or v == "":
+        return ""
+    if f == 0 and (isinstance(v, str) and v.strip() == ""):
+        return ""
+    return int(f) if f == int(f) else f
 
 
-# ── BANCO RAW (para Hoja1, sin filtro de fecha) ───────────────────────────────
-def leer_banco_raw(data: bytes):
-    grid = parse_sylk(data)
-    if not grid: return [], []
-    max_row = max(r for r, c in grid)
-    headers = [grid.get((2, c), "") for c in range(2, 11)]
+def _localizar_header_banco(ws):
+    """Encuentra la fila de encabezado del extracto y mapea las columnas.
+    Devuelve (header_row, {fecha,desc,doc,deb,cred,oficina,info}) — índices 1-based.
+    """
+    for r in range(1, min(ws.max_row, 50) + 1):
+        vals = [ws.cell(r, c).value for c in range(1, ws.max_column + 1)]
+        normed = [_norm_s(v) for v in vals]
+        if any("fecha" in v for v in normed) and any("bito" in v and "cr" not in v for v in normed):
+            cols = {}
+            for i, v in enumerate(normed, 1):
+                if "fecha" in v and "fecha" not in cols:
+                    cols["fecha"] = i
+                elif "escripci" in v and "desc" not in cols:
+                    cols["desc"] = i
+                elif "ocumento" in v and "doc" not in cols:
+                    cols["doc"] = i
+                elif "bito" in v and "cr" not in v and "deb" not in cols:
+                    cols["deb"] = i
+                elif "dito" in v and "cr" in v and "cred" not in cols:
+                    cols["cred"] = i
+                elif "oficina" in v and "oficina" not in cols:
+                    cols["oficina"] = i
+                elif ("nformaci" in v or "adicional" in v) and "info" not in cols:
+                    cols["info"] = i
+            return r, cols
+    raise ValueError(
+        "Banco: no se encontró la fila de encabezado con 'Fecha' y 'Débito'. "
+        "Verificá que el .xlsx descargado es el extracto correcto de Caja Social."
+    )
+
+
+# ── BANCO RAW (para Hoja1, filtrado al rango pedido) ──────────────────────────
+# El nuevo extracto trae todo el histórico (3+ meses), así que sí o sí hay que
+# filtrar por fecha aquí. Si no, Hoja1 traería movs ajenos al mes conciliado y
+# las sumas de impuestos al pie de CREDITO quedarían infladas.
+def leer_banco_raw(data: bytes, fecha_ini: date, fecha_fin: date):
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
+    ws = wb[BANCO_SHEET] if BANCO_SHEET in wb.sheetnames else wb.active
+
+    header_row, cols = _localizar_header_banco(ws)
     rows = []
-    for r in range(3, max_row + 1):
-        row_raw = [grid.get((r, c), "") for c in range(2, 11)]
-        row_out = list(row_raw)
-        row_out[2] = to_num_maybe(row_raw[2])   # Valor
-        row_out[3] = to_num_maybe(row_raw[3])   # Saldo
+    for r in range(header_row + 1, ws.max_row + 1):
+        fecha_v  = ws.cell(r, cols["fecha"]).value      if "fecha"   in cols else None
+        desc_v   = ws.cell(r, cols["desc"]).value       if "desc"    in cols else None
+        doc_v    = ws.cell(r, cols["doc"]).value        if "doc"     in cols else None
+        deb_v    = ws.cell(r, cols["deb"]).value        if "deb"     in cols else None
+        cred_v   = ws.cell(r, cols["cred"]).value       if "cred"    in cols else None
+        ofic_v   = ws.cell(r, cols["oficina"]).value    if "oficina" in cols else None
+        info_v   = ws.cell(r, cols["info"]).value       if "info"    in cols else None
+
+        if fecha_v is None and desc_v is None and deb_v in (None, "") and cred_v in (None, ""):
+            continue
+
+        desc = str(desc_v).strip() if desc_v is not None else ""
+        if desc in ("SALDO INICIAL", "SALDO FINAL"):
+            continue
+
+        f = parse_fecha(fecha_v)
+        if not f or f < fecha_ini or f > fecha_fin:
+            continue
+
+        deb_n  = parse_monto_co(deb_v)
+        cred_n = parse_monto_co(cred_v)
+        if deb_n == 0 and cred_n == 0 and not desc:
+            continue
+
+        # Valor con signo: Crédito positivo, Débito negativo
+        valor = cred_n - deb_n
+        valor = int(valor) if valor == int(valor) else valor
+
+        # Filas con descripciones especiales (-- vacíos)
+        info_str = ""
+        if info_v is not None and str(info_v).strip() not in ("", "--"):
+            info_str = str(info_v).strip()
+
+        row_out = [
+            f.strftime("%d/%m/%Y"),                                     # Fecha Transacción
+            desc,                                                       # Descripción
+            valor if valor != 0 else 0,                                 # Valor (signed)
+            "",                                                         # Saldo (no disponible)
+            "",                                                         # Regional / Oficina (no disponible)
+            "",                                                         # Tipo Transacción (no disponible)
+            str(ofic_v).strip() if ofic_v is not None else "",          # Oficina
+            str(doc_v).strip() if doc_v is not None else "",            # Ref. Titular Cuenta (← Documento)
+            info_str,                                                   # Detalles Adicionales
+        ]
         rows.append(row_out)
-    return headers, rows
+    return list(HOJA1_HEADERS), rows
 
 
 # ── BANCO FILTRADO (para DEBITO / CREDITO) ────────────────────────────────────
 def leer_banco(data: bytes, fecha_ini: date, fecha_fin: date):
-    grid = parse_sylk(data)
-    if not grid: return [], []
-    max_row = max(r for r, c in grid)
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
+    ws = wb[BANCO_SHEET] if BANCO_SHEET in wb.sheetnames else wb.active
+
+    header_row, cols = _localizar_header_banco(ws)
     positivos, negativos = [], []
-    for r in range(3, max_row + 1):
-        fecha_str = grid.get((r, 2), "")
-        desc      = grid.get((r, 3), "")
-        valor_str = grid.get((r, 4), "")
-        tipo      = grid.get((r, 7), "")
-        if desc in ("SALDO INICIAL", "SALDO FINAL"): continue
-        f = parse_fecha(fecha_str)
-        if not f or f < fecha_ini or f > fecha_fin: continue
-        valor = to_num(valor_str)
-        if valor == 0: continue
+    for r in range(header_row + 1, ws.max_row + 1):
+        fecha_v = ws.cell(r, cols["fecha"]).value if "fecha" in cols else None
+        desc_v  = ws.cell(r, cols["desc"]).value  if "desc"  in cols else None
+        deb_v   = ws.cell(r, cols["deb"]).value   if "deb"   in cols else None
+        cred_v  = ws.cell(r, cols["cred"]).value  if "cred"  in cols else None
+
+        desc = str(desc_v).strip() if desc_v is not None else ""
+        if desc in ("SALDO INICIAL", "SALDO FINAL"):
+            continue
+        f = parse_fecha(fecha_v)
+        if not f or f < fecha_ini or f > fecha_fin:
+            continue
+
+        deb_n  = parse_monto_co(deb_v)
+        cred_n = parse_monto_co(cred_v)
+        valor  = cred_n - deb_n
+        if valor == 0:
+            continue
+
+        fecha_str = f.strftime("%d/%m/%Y")
         if valor > 0:
             positivos.append((fecha_str, desc, valor))
-        elif tipo not in TIPOS_EXCLUIDOS:
-            negativos.append((fecha_str, desc, abs(valor), tipo))
+        elif desc not in IMPTOS_SET:
+            # Antes filtrábamos por "tipo" (N005/N328/...). Ahora el extracto
+            # ya no trae esa columna, así que excluimos por descripción.
+            negativos.append((fecha_str, desc, abs(valor), ""))
     return positivos, negativos
 
 
@@ -418,32 +525,23 @@ def _norm_s(s):
     return n.lower().strip()
 
 
-def _validar_banco_sylk(banco_bytes):
-    grid = parse_sylk(banco_bytes)
-    if not grid:
+def _validar_banco_xlsx(banco_bytes):
+    import openpyxl
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(banco_bytes), data_only=True)
+    except Exception as e:
+        raise ValueError(f'Banco: no se pudo abrir el archivo .xlsx ({e}).')
+
+    if BANCO_SHEET not in wb.sheetnames:
         raise ValueError(
-            'Banco (SYLK): El archivo no contiene datos. '
-            'Verificá que subiste el extracto correcto de Caja Social.'
+            f"Banco: la hoja '{BANCO_SHEET}' no está en el archivo "
+            f"(hojas encontradas: {wb.sheetnames}). "
+            f"Verificá que es el extracto descargado del portal de Caja Social."
         )
-    max_row = max(r for r, c in grid)
-    if max_row < 3:
-        raise ValueError(
-            'Banco (SYLK): El archivo tiene muy pocas filas. '
-            'Verificá que el extracto de Caja Social no está vacío.'
-        )
-    # Fila 2 contiene los encabezados; cols críticas: 2=Fecha, 3=Descripción, 4=Valor, 7=Tipo
-    esperadas = {2: 'fecha', 3: 'desc', 4: 'valor', 7: 'tipo'}
-    errores = []
-    for col, fragmento in esperadas.items():
-        val = grid.get((2, col), '')
-        if fragmento not in _norm_s(val):
-            errores.append(f'col {col} tiene "{val}", se esperaba algo con "{fragmento}"')
-    if errores:
-        fila2 = {c: grid.get((2, c), '') for c in range(2, 11) if grid.get((2, c))}
-        raise ValueError(
-            f'Banco (SYLK): Encabezados inesperados — {"; ".join(errores)}. '
-            f'Fila 2 del archivo: {fila2}'
-        )
+    ws = wb[BANCO_SHEET]
+    # _localizar_header_banco ya valida la presencia de Fecha y Débito y lanza
+    # ValueError descriptivo si no los encuentra.
+    _localizar_header_banco(ws)
 
 
 def _validar_siigo_cta(siigo_bytes):
@@ -502,13 +600,13 @@ class handler(BaseHTTPRequestHandler):
                 base64.b64decode(f1), base64.b64decode(f2)
             )
 
-            _validar_banco_sylk(banco_bytes)
+            _validar_banco_xlsx(banco_bytes)
             _validar_siigo_cta(siigo_bytes)
 
             fecha_ini = datetime.strptime(body["fecha_inicio"], "%Y-%m-%d").date()
             fecha_fin = datetime.strptime(body["fecha_fin"],    "%Y-%m-%d").date()
 
-            banco_raw_headers, banco_raw_rows = leer_banco_raw(banco_bytes)
+            banco_raw_headers, banco_raw_rows = leer_banco_raw(banco_bytes, fecha_ini, fecha_fin)
             positivos, negativos              = leer_banco(banco_bytes, fecha_ini, fecha_fin)
             siigo_deb, siigo_cred             = leer_siigo(siigo_bytes)
 
