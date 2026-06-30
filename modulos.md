@@ -521,3 +521,113 @@ conciliado:        true si ambas diferencias == 0
 - La detección del encabezado es robusta: busca la fila que contenga simultáneamente 'fecha' y 'bito' (de Débito) para no confundir con la fila 'Fecha del reporte'.
 - Los conceptos especiales (GRAVAMEN, DCTOS DE NOMINA) se ocultan independientemente de si cuadran con Siigo o no.
 - El Siigo puede tener más meses que el banco; los valores que no coincidan quedan como 'Siigo only' (amarillo).
+
+---
+
+---
+
+## Módulo 6 — Conciliación DIAN vs Zapatoca (inventario)
+
+**Ruta web**: `/zapatoca`
+**Función backend**: `api/zapatoca.py`
+**Estado**: ✅ Activo
+
+### ¿Para qué sirve?
+Cruza las facturas electrónicas de la **DIAN** (fuente oficial) con las facturas cargadas en el **sistema de inventario Zapatoca** (reporte exportado en .xlsx). Permite identificar:
+- Facturas que la DIAN registra pero **faltan** en el inventario (hay que cargarlas).
+- Facturas que están en el inventario pero **no aparecen** en la DIAN (posible error de prefijo/folio digitado).
+- Facturas matcheadas en ambos sistemas, con la diferencia de total entre fuentes.
+
+Sirve para auditar que todo lo facturado por proveedores quedó cargado en el inventario.
+
+---
+
+### Inputs
+
+| Archivo | Formato | Origen |
+|---------|---------|--------|
+| Reporte DIAN | `.zip` | Descargado del portal de la DIAN. El ZIP contiene un `.xlsx` interno. |
+| Reporte Zapatoca | `.xlsx` | Exportado del sistema de inventario Zapatoca → reporte de facturas por fechas. |
+| Fechas DIAN | inicio + fin | Rango aplicado sobre `Fecha Emisión` (DD-MM-YYYY). |
+| Fechas Zapatoca | inicio + fin | Rango aplicado sobre la columna `Fecha` del reporte (DD/MM/YYYY). |
+
+Los rangos van separados porque la DIAN usa la fecha de emisión del proveedor y Zapatoca la fecha de registro de la mercancía; habitualmente difieren en un día.
+
+---
+
+### Lógica de procesamiento
+
+#### DIAN
+1. Extraer el `.xlsx` del interior del `.zip`.
+2. Leer la hoja activa.
+3. **Columnas a conservar**: Tipo de documento, CUFE/CUDE, Folio, Prefijo, Fecha Emisión, Fecha Recepción, NIT Emisor, Nombre Emisor, IVA, Total.
+4. Eliminar filas con `Total == 0`.
+5. Filtrar por `Fecha Emisión` dentro del rango DIAN.
+6. **Excluir proveedores fijos**: hay una lista hardcoded de NITs (servicios públicos, telefonía, mercados personales, etc.) que no pasan por el inventario. Esos quedan fuera del cruce y aparecen como referencia en una hoja aparte del Excel de salida.
+
+#### Zapatoca
+1. Leer la hoja activa con encabezado en fila 1 (`Fecha`, `Folio`, `Proveedor`, `Responsable`, `Total`).
+2. Eliminar filas con `Total == 0` o sin folio.
+3. Filtrar por `Fecha` dentro del rango Zapatoca.
+
+#### Match (cruce entre sistemas)
+**Pasada 1 — clave normalizada**: `prefijo + folio` de la DIAN (sin caracteres especiales, en mayúsculas) contra el folio Zapatoca normalizado igual. Captura tanto `AFE-7847866` como `BBQR 168170` o `BBQR168036` (las variantes con/sin separador del usuario).
+
+**Pasada 2 — folio numérico final**: para entradas DIAN con prefijo vacío (algunos proveedores como COMERCIALIZADORA INSUMOPAN reportan sin prefijo), se intenta matchear el folio numérico final del lado Zapatoca. Cubre casos como DIAN `Prefijo='', Folio=94573` ↔ Zapatoca `FEIP-94573`.
+
+Las facturas Zapatoca con folio sin componente numérico válido (ej. `REMISIÓN`) quedan automáticamente como "solo en inventario".
+
+---
+
+### Output: `CONCILIACION_INVENTARIO_VS_DIAN.xlsx`
+
+#### Hoja 1: `Hoja1`
+
+| Columna | Contenido |
+|---------|-----------|
+| A | Tipo de documento (DIAN) |
+| B | CUFE/CUDE (DIAN) |
+| C | Folio (DIAN) |
+| D | Prefijo (DIAN) |
+| E | Fecha Emisión (DIAN) |
+| F | Fecha Recepción (DIAN) |
+| G | NIT Emisor (DIAN) |
+| H | Nombre Emisor (DIAN) |
+| I | IVA (DIAN) |
+| J | Total (DIAN) |
+| K | DIFERENCIA — fórmula `=+J{r}-L{r}` (solo en filas matcheadas) |
+| L | Total (Zapatoca) |
+| M | Fecha (Zapatoca) |
+| N | Folio (Zapatoca) |
+| O | Proveedor (Zapatoca) |
+
+#### Orden de filas y colores
+
+| Grupo | Color fondo | Descripción |
+|-------|-------------|-------------|
+| 🔴 Falta en inventario | `#F2DCDB` | En DIAN, **no están** en Zapatoca. Ordenadas por Total descendente. |
+| 🟠 Solo en inventario | `#FDE9D9` | En Zapatoca, **no están** en la DIAN. Ordenadas por Total descendente. |
+| 🟢 Matcheadas | `#EBF1DE` | En ambos sistemas. Ordenadas por Total descendente. |
+
+- Encabezados columnas DIAN (A–J): fondo `#348441` (verde oscuro), texto blanco, negrilla, Trebuchet MS 12.
+- Encabezado `DIFERENCIA` (K): sin fondo, negrilla en negro.
+- Encabezados Zapatoca (L–O): fondo `#007D7E` (teal), texto blanco, negrilla.
+- Texto de datos en negro, Trebuchet MS 11.
+- Columnas monetarias (IVA, Total, Diferencia) con formato `#,##0.##`.
+
+#### Hoja 2: `BORRAR ESTOS PROVEEDORES`
+Lista hardcoded de NIT + nombre de los proveedores que se omiten del cruce. Se mantiene visible para que Slendy pueda auditar y eventualmente pedir cambios en la lista.
+
+#### Resumen devuelto al frontend
+```
+X-Falta: facturas DIAN que faltan en inventario
+X-Extra: facturas en inventario que no están en DIAN
+X-Ok:    facturas matcheadas
+```
+
+---
+
+### Notas y excepciones conocidas
+- El reporte de facturas por fechas de Zapatoca antes incluía facturas **anuladas** (duplicados con distinta fecha). Eso ya se corrigió en el sistema de origen — el reporte actual no las trae. Las que llegaron a pasar (ej. `R91E-5549`, `R91E-5849` antes del fix) tenían folio idéntico al de la factura real, así que el cruce no las distingue: si llegan a aparecer ambas en el input, se considerarán matches válidos.
+- La lista de **proveedores excluidos** está hardcoded en `api/zapatoca.py` (constante `PROVEEDORES_EXCLUIDOS`). Para añadir o quitar uno hay que editar el código.
+- Si en el Excel de Zapatoca aparece un folio con typo distinto al de la DIAN (ej. `98790` cuando la DIAN trae `96790`), el sistema los deja como pares **no matcheados** (rojo + naranja). Eso es intencional para que Slendy detecte y corrija los typos en el inventario.

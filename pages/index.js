@@ -52,6 +52,16 @@ const MODULOS = [
     nombre: 'Caja Social Mensual',
     descripcion: 'Concilia el extracto de la nueva página de Caja Social con Siigo.',
   },
+  {
+    id: 'zapatoca',
+    href: '/zapatoca',
+    logos: [
+      { src: '/logos/Dian.png',     alt: 'DIAN'     },
+      { src: '/logos/Zapatoca.png', alt: 'Zapatoca' },
+    ],
+    nombre: 'DIAN vs Inventario Zapatoca',
+    descripcion: 'Cruza las facturas de la DIAN con el reporte del inventario y marca las diferencias.',
+  },
 ]
 
 export default function Dashboard() {
