@@ -43,16 +43,6 @@ function ModalComoFunciona({ onClose }) {
           </section>
 
           <section>
-            <h3 className="text-white font-semibold mb-1.5">¿Por qué dos rangos de fecha?</h3>
-            <p className="text-secondary">
-              La DIAN usa la fecha de emisión de la factura, mientras que en Zapatoca queda la
-              fecha de registro de la mercancía. Casi siempre hay un día de diferencia. Por eso
-              cada fuente tiene su propio rango — así podés ajustar el corte sin que se pierdan
-              facturas de borde.
-            </p>
-          </section>
-
-          <section>
             <h3 className="text-white font-semibold mb-1.5">¿Cómo identifica la misma factura?</h3>
             <p className="text-secondary">
               Por <strong className="text-white">Prefijo + Folio</strong>. Por ejemplo, la DIAN
@@ -116,19 +106,12 @@ const toBase64 = (file) =>
 export default function Zapatoca() {
   const [dianFile,     setDianFile]     = useState(null)
   const [zapFile,      setZapFile]      = useState(null)
-  const [fDianIni,     setFDianIni]     = useState('')
-  const [fDianFin,     setFDianFin]     = useState('')
-  const [fZapIni,      setFZapIni]      = useState('')
-  const [fZapFin,      setFZapFin]      = useState('')
   const [estado,       setEstado]       = useState('idle')
   const [resultado,    setResultado]    = useState(null)
   const [errorMsg,     setErrorMsg]     = useState('')
   const [modalAbierto, setModal]        = useState(false)
 
-  const puedeEnviar =
-    dianFile && zapFile &&
-    fDianIni && fDianFin && fZapIni && fZapFin &&
-    estado !== 'loading'
+  const puedeEnviar = dianFile && zapFile && estado !== 'loading'
 
   const handleProcesar = async () => {
     setEstado('loading')
@@ -145,12 +128,8 @@ export default function Zapatoca() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          dian:           dianB64,
-          zapatoca:       zapB64,
-          fecha_dian_ini: fDianIni,
-          fecha_dian_fin: fDianFin,
-          fecha_zap_ini:  fZapIni,
-          fecha_zap_fin:  fZapFin,
+          dian:     dianB64,
+          zapatoca: zapB64,
         }),
       })
 
@@ -185,10 +164,6 @@ export default function Zapatoca() {
   const handleReiniciar = () => {
     setDianFile(null)
     setZapFile(null)
-    setFDianIni('')
-    setFDianFin('')
-    setFZapIni('')
-    setFZapFin('')
     setEstado('idle')
     setResultado(null)
     setErrorMsg('')
@@ -246,7 +221,7 @@ export default function Zapatoca() {
                        style={{ background: 'rgba(0,196,212,0.07)', border: '1px solid rgba(0,196,212,0.15)' }}>
                     Subí el <strong className="text-white">.zip</strong> que descargás de la DIAN y el
                     {' '}<strong className="text-white">.xlsx</strong> del reporte por fechas de Zapatoca.
-                    Cada fuente tiene su propio rango de fechas (suelen estar desfasados un día).
+                    Se cruzan todas contra todas por prefijo + folio — el rango ya viene definido por los archivos.
                   </div>
 
                   {/* Zonas de upload */}
@@ -267,60 +242,6 @@ export default function Zapatoca() {
                       file={zapFile}
                       onFile={setZapFile}
                     />
-                  </div>
-
-                  {/* Rango DIAN */}
-                  <div>
-                    <p className="text-secondary text-xs font-medium mb-3 uppercase tracking-wider">
-                      Rango DIAN <span className="text-white/40 normal-case tracking-normal">(fecha de emisión)</span>
-                    </p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-secondary text-xs">Desde</label>
-                        <input
-                          type="date"
-                          value={fDianIni}
-                          onChange={(e) => setFDianIni(e.target.value)}
-                          className="date-input"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-secondary text-xs">Hasta</label>
-                        <input
-                          type="date"
-                          value={fDianFin}
-                          onChange={(e) => setFDianFin(e.target.value)}
-                          className="date-input"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Rango Zapatoca */}
-                  <div>
-                    <p className="text-secondary text-xs font-medium mb-3 uppercase tracking-wider">
-                      Rango Zapatoca <span className="text-white/40 normal-case tracking-normal">(fecha de registro)</span>
-                    </p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-secondary text-xs">Desde</label>
-                        <input
-                          type="date"
-                          value={fZapIni}
-                          onChange={(e) => setFZapIni(e.target.value)}
-                          className="date-input"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-secondary text-xs">Hasta</label>
-                        <input
-                          type="date"
-                          value={fZapFin}
-                          onChange={(e) => setFZapFin(e.target.value)}
-                          className="date-input"
-                        />
-                      </div>
-                    </div>
                   </div>
 
                   {/* Botón procesar */}

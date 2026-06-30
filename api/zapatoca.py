@@ -9,7 +9,6 @@ import io
 import json
 import re
 import zipfile
-from datetime import date, datetime
 
 import openpyxl
 from openpyxl import Workbook
@@ -125,52 +124,11 @@ def _folio_solo(zap_folio):
     return m.group(1) if m else ''
 
 
-def _parse_fecha_dian(valor):
-    """Parsea fechas DIAN ('29-06-2026' o datetime) a date."""
-    if valor is None or valor == '':
-        return None
-    if isinstance(valor, datetime):
-        return valor.date()
-    if isinstance(valor, date):
-        return valor
-    s = str(valor).strip()
-    for fmt in ('%d-%m-%Y', '%Y-%m-%d', '%d/%m/%Y'):
-        try:
-            return datetime.strptime(s, fmt).date()
-        except ValueError:
-            continue
-    return None
-
-
-def _parse_fecha_zap(valor):
-    """Parsea fechas Zapatoca ('27/06/2026' o datetime) a date."""
-    if valor is None or valor == '':
-        return None
-    if isinstance(valor, datetime):
-        return valor.date()
-    if isinstance(valor, date):
-        return valor
-    s = str(valor).strip()
-    for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y'):
-        try:
-            return datetime.strptime(s, fmt).date()
-        except ValueError:
-            continue
-    return None
-
-
-def _parse_fecha_input(s):
-    """Parsea fechas del frontend ('YYYY-MM-DD') a date. Devuelve None si está vacía."""
-    if not s:
-        return None
-    return datetime.strptime(s, '%Y-%m-%d').date()
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # PROCESAMIENTO DIAN
 # ─────────────────────────────────────────────────────────────────────────────
 
-def procesar_dian(zip_bytes, fecha_ini, fecha_fin):
+def procesar_dian(zip_bytes):
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         xlsx_names = [n for n in zf.namelist() if n.lower().endswith('.xlsx')]
         if not xlsx_names:
@@ -212,12 +170,6 @@ def procesar_dian(zip_bytes, fecha_ini, fecha_fin):
         nit = str(fila['NIT Emisor']).strip() if fila['NIT Emisor'] is not None else ''
         fila['NIT Emisor'] = nit
 
-        f_emi = _parse_fecha_dian(fila['Fecha Emisión'])
-        if fecha_ini and f_emi and f_emi < fecha_ini:
-            continue
-        if fecha_fin and f_emi and f_emi > fecha_fin:
-            continue
-
         if nit in NITS_EXCLUIDOS:
             continue
 
@@ -234,7 +186,7 @@ def procesar_dian(zip_bytes, fecha_ini, fecha_fin):
 ZAP_REQUIRED = ['Fecha', 'Folio', 'Proveedor', 'Total']
 
 
-def procesar_zapatoca(xlsx_bytes, fecha_ini, fecha_fin):
+def procesar_zapatoca(xlsx_bytes):
     wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes))
     ws = wb.active
     headers = [c.value for c in ws[1]]
@@ -262,12 +214,6 @@ def procesar_zapatoca(xlsx_bytes, fecha_ini, fecha_fin):
         folio_raw = raw[idx['Folio']]
         fecha_raw = raw[idx['Fecha']]
         proveedor = raw[idx['Proveedor']]
-
-        f = _parse_fecha_zap(fecha_raw)
-        if fecha_ini and f and f < fecha_ini:
-            continue
-        if fecha_fin and f and f > fecha_fin:
-            continue
 
         filas.append({
             'Fecha':     fecha_raw,
@@ -510,13 +456,8 @@ class handler(BaseHTTPRequestHandler):
             zip_bytes  = base64.b64decode(data['dian'])
             xlsx_bytes = base64.b64decode(data['zapatoca'])
 
-            f_dian_ini = _parse_fecha_input(data.get('fecha_dian_ini'))
-            f_dian_fin = _parse_fecha_input(data.get('fecha_dian_fin'))
-            f_zap_ini  = _parse_fecha_input(data.get('fecha_zap_ini'))
-            f_zap_fin  = _parse_fecha_input(data.get('fecha_zap_fin'))
-
-            dian_filas = procesar_dian(zip_bytes,  f_dian_ini, f_dian_fin)
-            zap_filas  = procesar_zapatoca(xlsx_bytes, f_zap_ini, f_zap_fin)
+            dian_filas = procesar_dian(zip_bytes)
+            zap_filas  = procesar_zapatoca(xlsx_bytes)
 
             matched, dian_only, zap_only = cruzar(dian_filas, zap_filas)
 

@@ -548,10 +548,8 @@ Sirve para auditar que todo lo facturado por proveedores quedó cargado en el in
 |---------|---------|--------|
 | Reporte DIAN | `.zip` | Descargado del portal de la DIAN. El ZIP contiene un `.xlsx` interno. |
 | Reporte Zapatoca | `.xlsx` | Exportado del sistema de inventario Zapatoca → reporte de facturas por fechas. |
-| Fechas DIAN | inicio + fin | Rango aplicado sobre `Fecha Emisión` (DD-MM-YYYY). |
-| Fechas Zapatoca | inicio + fin | Rango aplicado sobre la columna `Fecha` del reporte (DD/MM/YYYY). |
 
-Los rangos van separados porque la DIAN usa la fecha de emisión del proveedor y Zapatoca la fecha de registro de la mercancía; habitualmente difieren en un día.
+No se piden fechas: el rango ya viene definido por los propios archivos. El cruce se hace todo contra todo por prefijo + folio.
 
 ---
 
@@ -562,13 +560,11 @@ Los rangos van separados porque la DIAN usa la fecha de emisión del proveedor y
 2. Leer la hoja activa.
 3. **Columnas a conservar**: Tipo de documento, CUFE/CUDE, Folio, Prefijo, Fecha Emisión, Fecha Recepción, NIT Emisor, Nombre Emisor, IVA, Total.
 4. Eliminar filas con `Total == 0`.
-5. Filtrar por `Fecha Emisión` dentro del rango DIAN.
-6. **Excluir proveedores fijos**: hay una lista hardcoded de NITs (servicios públicos, telefonía, mercados personales, etc.) que no pasan por el inventario. Esos quedan fuera del cruce y aparecen como referencia en una hoja aparte del Excel de salida.
+5. **Excluir proveedores fijos**: hay una lista hardcoded de NITs (servicios públicos, telefonía, mercados personales, etc.) que no pasan por el inventario. Esos quedan fuera del cruce y aparecen como referencia en una hoja aparte del Excel de salida.
 
 #### Zapatoca
 1. Leer la hoja activa con encabezado en fila 1 (`Fecha`, `Folio`, `Proveedor`, `Responsable`, `Total`).
 2. Eliminar filas con `Total == 0` o sin folio.
-3. Filtrar por `Fecha` dentro del rango Zapatoca.
 
 #### Match (cruce entre sistemas)
 **Pasada 1 — clave normalizada**: `prefijo + folio` de la DIAN (sin caracteres especiales, en mayúsculas) contra el folio Zapatoca normalizado igual. Captura tanto `AFE-7847866` como `BBQR 168170` o `BBQR168036` (las variantes con/sin separador del usuario).
