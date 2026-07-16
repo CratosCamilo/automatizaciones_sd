@@ -36,15 +36,28 @@ LLAVE_KEYS = {'Pago A Llave De Comercio', 'Pago A Llave Comercio'}
 # Nombres abreviados que Redeban envía → apodo corto para identificar rápido.
 # La clave es los tokens alfabéticos del nombre, en mayúsculas, separados por espacio.
 ALIAS_MAP = {
-    'CAR ALB PLA PIM': 'POLLO',
-    'SUL LAU VID SAN': 'WALDIR',
-    'YOL PEN GUT':     'ENRIQUE',
-    'UIL DE JES OSO':  'PAISA',
-    'BLA NID OCA OCA': 'NIDIA',
-    'LEA DAV LAM BAR': 'LEAN/DAVID',
-    'JUL ALE ROD CAS': 'JULIAN',
-    'WEN JOH ORT LOP': 'GUSTAVO',
-    'CAR BON':         'FERNANDO',
+    'CAR ALB PLA PIM':    'POLLO',
+    'SUL LAU VID SAN':    'WALDIR',
+    'YOL PEN GUT':        'ENRIQUE',
+    'UIL DE JES OSO':     'PAISA',
+    'BLA NID OCA OCA':    'NIDIA',
+    'LEA DAV LAM BAR':    'LEAN/DAVID',
+    'JUL ALE ROD CAS':    'JULIAN',
+    'WEN JOH ORT LOP':    'GUSTAVO',
+    'CAR BON':            'FERNANDO',
+    'JAD VAL ROD OCA':    'RAUL',
+    'ANA MAR RAC CAS':    'DEIVID',
+    'JES DAV REY SIL':    'DAVID',
+    'JIM MAN MOS':        'NIDIA',
+    'GUS RAF MER GON':    'GUSTAVO',
+    'MAR FER PIN BLA':    'HECTOR',
+    'MIG HER RUE ESC':    'HECTOR',
+    'VIC MAN ORT CAS':    'KOALA',
+    'LUI RIC QUI PER':    'LUIS QUINTERO',
+    'AND DAV ORT ESP':    'ASESORIAS Y CAPACITACIONES N&M S.A.S.',
+    'RIC DAV MER CER':    'MARIA FERNANDA CAPATAZ SIERRA',
+    'MIS ENR NUN CAM':    'PROVISION MAXIMA S.A.S.',
+    'ROB DE JES LAP SAN': 'ASOCIACION AFROCOLOMBIANA KUMKUMBAMANA',
 }
 
 
