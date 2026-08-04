@@ -330,12 +330,19 @@ def generar_output(inv_bytes, mes_objetivo, anio, pool, stock):
     # Título en A1
     ws_new.cell(1, 1).value = f'INVENTARIO {mes_objetivo}'
 
-    # Recorrer filas de datos: desde 3 hasta max_row de la hoja duplicada
-    # Determinar hasta dónde hay data en el mes anterior (por columna A)
+    # Recorrer filas de datos: desde 3 hasta la última fila con NOMBRE (string) en col A.
+    # OJO: no usar "última fila con valor" porque hay un bloque de resumen debajo
+    # (fila 85 con totales SUM, filas 87-91 con INVENTARIO INICIAL/COMPRAS/TOTAL/etc.)
+    # que NO se debe tocar. Los nombres reales son siempre strings; cualquier None,
+    # número suelto (ej. un 0 residual) o label indica que ya no estamos en datos.
     last_data_row = 2
     for r in range(3, ws_prev_val.max_row + 1):
-        if ws_prev_val.cell(r, COL_NOMBRE).value not in (None, ''):
+        v = ws_prev_val.cell(r, COL_NOMBRE).value
+        if isinstance(v, str) and v.strip():
             last_data_row = r
+        else:
+            # primera fila sin nombre-string → cortamos aquí
+            break
 
     compras_ok = 0
     cantidad_ok = 0
