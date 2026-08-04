@@ -380,6 +380,18 @@ def generar_output(inv_bytes, mes_objetivo, anio, pool, stock):
         # COSTEO: fórmula
         ws_new.cell(r, COL_COSTEO).value = f'=+B{r}+C{r}-F{r}'
 
+    # Reparar la fila de totales del mini-reporte de costo (típicamente fila 85):
+    # en la hoja original B{fila} es un valor literal mientras C..G son SUM(...).
+    # Al copiar la hoja B{fila} queda con el valor VIEJO del mes anterior, y el
+    # bloque de resumen (F87:G91) mostraría un INVENTARIO INICIAL incorrecto.
+    # Solución: buscar la fila de totales (la primera después de los datos con
+    # =SUM en col C) y reemplazar B por la fórmula equivalente.
+    for r in range(last_data_row + 1, min(ws_new.max_row, last_data_row + 10) + 1):
+        c_val = ws_new.cell(r, COL_COMPRAS).value
+        if isinstance(c_val, str) and c_val.upper().startswith('=SUM'):
+            ws_new.cell(r, COL_INV_INICIAL).value = f'=SUM(B3:B{last_data_row})'
+            break
+
     # Limpiar celdas por si copy_worksheet arrastró contenido residual en el bloque de sobrantes
     for r in range(2, ws_new.max_row + 1):
         for c in range(COL_SOB_NOMBRE, COL_SOB_CANTIDAD + 1):
