@@ -226,7 +226,7 @@ export default function InventarioMensual() {
                   {/* Instrucción */}
                   <div className="rounded-lg px-4 py-3 text-xs text-secondary leading-relaxed"
                        style={{ background: 'rgba(0,196,212,0.07)', border: '1px solid rgba(0,196,212,0.15)' }}>
-                    Elegí la bodega, subí los <strong className="text-white">3 archivos .xlsx</strong> en cualquier orden.
+                    Elige la bodega, sube los <strong className="text-white">3 archivos .xlsx</strong> en cualquier orden.
                     El mes se detecta automáticamente desde la fecha del stock físico.
                   </div>
 
