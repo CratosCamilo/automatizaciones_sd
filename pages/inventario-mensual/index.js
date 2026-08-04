@@ -132,7 +132,8 @@ export default function InventarioMensual() {
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href     = url
-      a.download = `INVENTARIO ${mes || 'MES'}.xlsx`
+      const anio = (mes.match(/\d{4}/) || [new Date().getFullYear()])[0]
+      a.download = `INVENTARIO ${anio}.xlsx`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

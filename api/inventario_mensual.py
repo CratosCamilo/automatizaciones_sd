@@ -471,7 +471,7 @@ class handler(BaseHTTPRequestHandler):
                 archivos['inventario'], mes_objetivo, anio, pool, stock
             )
 
-            filename = f'INVENTARIO {anio} - {mes_objetivo}.xlsx'
+            filename = f'INVENTARIO {anio}.xlsx'
 
             self.send_response(200)
             self.send_header('Content-Type',
