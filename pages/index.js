@@ -62,6 +62,16 @@ const MODULOS = [
     nombre: 'DIAN vs Inventario Zapatoca',
     descripcion: 'Cruza las facturas de la DIAN con el reporte del inventario y marca las diferencias.',
   },
+  {
+    id: 'inventario-mensual',
+    href: '/inventario-mensual',
+    logos: [
+      { src: '/logos/Siigo.png',    alt: 'Siigo'    },
+      { src: '/logos/Zapatoca.png', alt: 'Zapatoca' },
+    ],
+    nombre: 'Inventario mensual Zapatoca',
+    descripcion: 'Arma la hoja del nuevo mes en INVENTARIO cruzando Siigo con el stock físico.',
+  },
 ]
 
 export default function Dashboard() {

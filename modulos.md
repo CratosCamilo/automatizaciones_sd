@@ -627,3 +627,116 @@ X-Ok:    facturas matcheadas
 - El reporte de facturas por fechas de Zapatoca antes incluía facturas **anuladas** (duplicados con distinta fecha). Eso ya se corrigió en el sistema de origen — el reporte actual no las trae. Las que llegaron a pasar (ej. `R91E-5549`, `R91E-5849` antes del fix) tenían folio idéntico al de la factura real, así que el cruce no las distingue: si llegan a aparecer ambas en el input, se considerarán matches válidos.
 - La lista de **proveedores excluidos** está hardcoded en `api/zapatoca.py` (constante `PROVEEDORES_EXCLUIDOS`). Para añadir o quitar uno hay que editar el código.
 - Si en el Excel de Zapatoca aparece un folio con typo distinto al de la DIAN (ej. `98790` cuando la DIAN trae `96790`), el sistema los deja como pares **no matcheados** (rojo + naranja). Eso es intencional para que Slendy detecte y corrija los typos en el inventario.
+
+---
+
+---
+
+## Módulo 7 — Inventario mensual Zapatoca
+
+**Ruta web**: `/inventario-mensual`
+**Función backend**: `api/inventario_mensual.py`
+**Estado**: ✅ Activo
+
+### ¿Para qué sirve?
+Automatiza el armado de la hoja del nuevo mes en el archivo `INVENTARIO YYYY`. Cada mes Slendy:
+1. Duplica la hoja del mes anterior.
+2. Pasa `INV FINAL` → `INV INICIAL` del mes nuevo, deja vacías las columnas de trabajo (COMPRAS, CANTIDAD, INV FINAL) y las fórmulas de INV FINAL y COSTEO.
+3. Rellena `COMPRAS` cruzando por nombre contra el pool de compras del mes (extraído de las pólizas detalladas de Siigo, filtrando `Producto: MATERIA PRIMA VARIOS`).
+4. Rellena `CANTIDAD` cruzando por nombre contra el stock físico del último día del mes.
+5. Los ítems del pool o del stock que no matchean por nombre exacto quedan a la derecha para revisar/corregir manualmente.
+
+Este módulo hace todo eso automáticamente y devuelve el mismo archivo `INVENTARIO YYYY` con la nueva hoja agregada.
+
+---
+
+### Inputs
+
+| Archivo | Formato | Origen |
+|---------|---------|--------|
+| Pólizas detalladas | `.xlsx` | Exportado de Siigo → Pólizas detalladas (hoja "ASÍ SALE"). Encabezados en fila 8, datos desde fila 9. |
+| INVENTARIO YYYY | `.xlsx` | Archivo maestro anual con una hoja por mes (ENERO, FEBRERO, …). Fila 2 tiene los headers NOMBRE / INV INICIAL / COMPRAS / UNITARIO / CANTIDAD / INV FINAL / COSTEO. |
+| Stock al YYYY-MM-DD | `.xlsx` | Reporte del stock físico. Hoja "Producción" con headers en fila 1 (Producto / Stock al YYYY-MM-DD / Unidad / Mínimo). |
+
+**No se piden fechas ni mes**: el mes se auto-detecta desde el header B1 del stock (`Stock al 2026-07-31` → JULIO 2026).
+
+**No importa el orden de subida**: el backend detecta cuál archivo es cuál por contenido.
+
+---
+
+### Lógica de procesamiento
+
+#### 1. Detección de archivos
+Se recorren los 3 workbooks recibidos y se identifican por reglas de contenido:
+- **INVENTARIO**: tiene ≥1 hoja con nombre de mes (ENERO..DICIEMBRE) cuya fila 2 contiene los headers `NOMBRE / INV INICIAL / COMPRAS`.
+- **PÓLIZAS**: alguna hoja tiene "Detalle" en I8 y ≥1 fila con `Producto: MATERIA PRIMA VARIOS` en col I.
+- **STOCK**: alguna hoja tiene B1 empezando con `Stock al ` (y A1 = "Producto").
+
+Si algún archivo no matchea, matchea a dos tipos, o se subieron dos del mismo tipo → error 400 explicando el problema.
+
+#### 2. Extracción del mes objetivo
+Del B1 del stock (`Stock al 2026-07-31`) se parsea la fecha → mes = JULIO, año = 2026.
+
+**Validaciones**:
+- Debe existir la hoja del mes anterior en el INVENTARIO (JUNIO). Si no, error 400.
+- La hoja del mes objetivo (JULIO) NO debe existir todavía en el INVENTARIO. Si existe → error 400 pidiendo borrarla manualmente antes de reprocesar.
+
+#### 3. Construcción del pool desde Pólizas
+- Se lee la hoja con encabezado "Detalle" en I8.
+- Se filtran filas donde col I contiene (case-insensitive) `PRODUCTO: MATERIA PRIMA VARIOS`.
+- Se extrae H (descripción) + K (débito).
+- Se agrupa por descripción (con `.strip()`) sumando débitos.
+
+#### 4. Construcción del diccionario de stock
+- Solo hoja "Producción" (o la activa como fallback).
+- Se lee desde la fila 2: col A (nombre) → col B (cantidad).
+
+#### 5. Generación de la hoja nueva
+- Se duplica la hoja del mes anterior con `wb.copy_worksheet` (preserva estilos, fórmulas, anchos de columna).
+- Se renombra la hoja a `JULIO` y se ajusta el título A1 a `INVENTARIO JULIO`.
+- Se abre una segunda copia del workbook con `data_only=True` para obtener los valores calculados de INV FINAL del mes anterior.
+- Para cada fila con datos (desde fila 3 hasta la última fila con NOMBRE):
+  - `INV INICIAL` (col B) ← valor calculado de `INV FINAL` (col F) del mes anterior.
+  - `UNITARIO` (col D) se conserva (viene del `copy_worksheet`).
+  - `COMPRAS` (col C) se limpia y luego se rellena si el nombre matchea en el pool (con `.strip()` en ambos lados, case-sensitive). El item matcheado se remueve del pool.
+  - `CANTIDAD` (col E) se limpia y luego se rellena desde el diccionario de stock con la misma regla.
+  - `INV FINAL` (col F) → fórmula `=+D{r}*E{r}`.
+  - `COSTEO` (col G) → fórmula `=+B{r}+C{r}-F{r}`.
+
+#### 6. Bloque de sobrantes
+Después de recorrer todas las filas, los ítems no matcheados (residuo del pool + residuo del stock) se unen en un solo bloque a la derecha del inventario, dejando col H libre como separador:
+
+| Col | Contenido |
+|-----|-----------|
+| I   | NOMBRE PENDIENTE (unión ordenada alfabéticamente) |
+| J   | COMPRAS (pool) — valor del pool si el nombre venía de ahí |
+| K   | CANTIDAD (stock) — valor del stock si el nombre venía de ahí |
+
+Un mismo nombre puede tener valor solo en J, solo en K, o ambos. Header con fondo naranja claro (`#FDE9D9`) y negrilla.
+
+**No se modifican las hojas de los meses anteriores.**
+
+---
+
+### Output: `INVENTARIO YYYY - {MES}.xlsx`
+
+El mismo workbook INVENTARIO recibido, con una hoja nueva agregada al final del mes detectado.
+
+Ejemplo: `INVENTARIO 2026 - JULIO.xlsx`
+
+#### Response headers al frontend
+```
+X-Mes:                 mes procesado (ej. "JULIO 2026")
+X-Compras-Ok:          items del pool que matchearon con el inventario
+X-Compras-Pendientes:  items del pool que quedaron en sobrantes
+X-Cantidad-Ok:         items del stock que matchearon con el inventario
+X-Cantidad-Pendientes: items del stock que quedaron en sobrantes
+```
+
+---
+
+### Notas y excepciones conocidas
+- El match de nombres es case-sensitive con `.strip()` (espacios al inicio/fin ignorados). No se intenta normalización más agresiva a propósito: si un nombre tiene una letra o espacio interno de más, queda en sobrantes para que Slendy vea que hay inconsistencia y decida qué hacer.
+- Solo se usa la hoja "Producción" del stock. La hoja "Empaques" (si existe) se ignora porque sus ítems no están en el inventario de materia prima.
+- El filtro de pólizas usa `PRODUCTO: MATERIA PRIMA VARIOS` (case-insensitive) en la col "Detalle". Filas de "Comprobante: FC-…" y otras filas de detalle contable se ignoran automáticamente porque no matchean el filtro.
+- La detección de archivos por contenido es tolerante al nombre de archivo: los archivos pueden llamarse cualquier cosa, siempre se identifican por su estructura interna.
