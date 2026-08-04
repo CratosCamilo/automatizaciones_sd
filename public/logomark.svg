@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Slendy Automatizaciones">
+  <!-- Sin fondo: pensado para usar sobre superficies del site -->
+  <path d="M 47 22
+           C 47 15, 41 12, 32 12
+           C 23 12, 17 15, 17 22
+           C 17 29, 24 30, 32 31
+           C 40 32, 47 34, 47 42
+           C 47 49, 41 52, 32 52
+           C 23 52, 17 49, 17 42"
+        fill="none"
+        stroke="#00C4D4"
+        stroke-width="7"
+        stroke-linecap="round"/>
+  <circle cx="52" cy="14" r="3.2" fill="#00C4D4"/>
+</svg>
