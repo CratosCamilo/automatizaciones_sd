@@ -632,7 +632,7 @@ X-Ok:    facturas matcheadas
 
 ---
 
-## Módulo 7 — Inventario mensual Zapatoca
+## Módulo 7 — Costeo
 
 **Ruta web**: `/inventario-mensual`
 **Función backend**: `api/inventario_mensual.py`

@@ -145,6 +145,24 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   }
 
+  /* ── Module card: list variant (compact horizontal row) */
+  .module-card-list {
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 18px;
+    min-height: 60px;
+  }
+
+  .module-card-list:hover {
+    transform: translateX(3px);
+  }
+
+  .module-card-list .module-logo-chip img {
+    width: 44px;
+    height: 20px;
+  }
+
   /* ── Module logo chips (dashboard cards) ─────────────── */
   .module-logo-chip {
     background: rgba(255, 255, 255, 0.92);

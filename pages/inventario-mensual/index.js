@@ -177,7 +177,7 @@ export default function InventarioMensual() {
   }
 
   return (
-    <Layout title="Inventario mensual Zapatoca">
+    <Layout title="Costeo">
       {modalAbierto && <ModalComoFunciona onClose={() => setModal(false)} />}
       <div className="min-h-[calc(100vh-48px)] px-6 py-8">
         <div className="max-w-2xl mx-auto">
@@ -186,7 +186,7 @@ export default function InventarioMensual() {
           <div className="flex items-center gap-2 text-xs text-secondary mb-6">
             <Link href="/" className="hover:text-white transition-colors">Inicio</Link>
             <span>/</span>
-            <span className="text-white">Inventario mensual Zapatoca</span>
+            <span className="text-white">Costeo</span>
           </div>
 
           {/* Card principal */}
@@ -199,7 +199,7 @@ export default function InventarioMensual() {
                   <span className="text-2xl">📦</span>
                   <div>
                     <h1 className="text-white font-semibold text-[17px] leading-tight">
-                      Inventario mensual Zapatoca
+                      Costeo
                     </h1>
                     <p className="text-secondary text-xs mt-0.5">
                       Arma la hoja del nuevo mes en INVENTARIO cruzando Siigo + stock físico

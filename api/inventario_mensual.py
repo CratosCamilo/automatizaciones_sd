@@ -1,5 +1,5 @@
 """
-Vercel Python serverless function — Inventario mensual Zapatoca.
+Vercel Python serverless function — Costeo (inventario mensual).
 
 Recibe 3 excels (Siigo pólizas detalladas, INVENTARIO YYYY, Stock al fecha) en
 base64 vía JSON POST. El orden NO importa: el archivo se detecta por contenido.
