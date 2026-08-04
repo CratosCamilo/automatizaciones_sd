@@ -70,6 +70,18 @@ function ModalComoFunciona({ onClose }) {
             </p>
           </section>
 
+          <section>
+            <h3 className="text-white font-semibold mb-1.5">Bodega Pastelería vs Zapatoca</h3>
+            <p className="text-secondary">
+              Son dos bodegas independientes que comparten el mismo procedimiento pero se filtran distinto
+              en las pólizas de Siigo:
+            </p>
+            <ul className="text-secondary space-y-1 list-disc list-inside mt-1.5">
+              <li><strong className="text-white">Pastelería</strong>: solo filas de detalle que digan <code className="text-cyan-300">Producto: MATERIA PRIMA VARIOS</code>.</li>
+              <li><strong className="text-white">Zapatoca (panadería)</strong>: filas de detalle que empiecen con <code className="text-cyan-300">Producto:</code> (cualquier producto).</li>
+            </ul>
+          </section>
+
         </div>
       </div>
     </div>
@@ -84,7 +96,13 @@ const toBase64 = (file) =>
     reader.readAsDataURL(file)
   })
 
+const BODEGAS = [
+  { id: 'pasteleria', label: 'Pastelería', icon: '🧁', filtro: 'MATERIA PRIMA VARIOS' },
+  { id: 'zapatoca',   label: 'Zapatoca',   icon: '🍞', filtro: 'Producto: (todos)'    },
+]
+
 export default function InventarioMensual() {
+  const [bodega,       setBodega]       = useState('pasteleria')
   const [fileA,        setFileA]        = useState(null)
   const [fileB,        setFileB]        = useState(null)
   const [fileC,        setFileC]        = useState(null)
@@ -111,6 +129,7 @@ export default function InventarioMensual() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          bodega,
           archivo_a: b64A,
           archivo_b: b64B,
           archivo_c: b64C,
@@ -207,8 +226,41 @@ export default function InventarioMensual() {
                   {/* Instrucción */}
                   <div className="rounded-lg px-4 py-3 text-xs text-secondary leading-relaxed"
                        style={{ background: 'rgba(0,196,212,0.07)', border: '1px solid rgba(0,196,212,0.15)' }}>
-                    Subí los <strong className="text-white">3 archivos .xlsx</strong> en cualquier orden. El mes
-                    se detecta automáticamente desde la fecha del stock físico.
+                    Elegí la bodega, subí los <strong className="text-white">3 archivos .xlsx</strong> en cualquier orden.
+                    El mes se detecta automáticamente desde la fecha del stock físico.
+                  </div>
+
+                  {/* Selector de bodega */}
+                  <div>
+                    <p className="text-secondary text-[11px] uppercase tracking-widest font-medium mb-2">
+                      Bodega
+                    </p>
+                    <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      {BODEGAS.map((b) => {
+                        const activa = bodega === b.id
+                        return (
+                          <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => setBodega(b.id)}
+                            className="flex-1 rounded-lg py-2.5 px-3 text-sm font-medium transition-all duration-150 flex items-center justify-center gap-2"
+                            style={{
+                              background: activa ? '#00C4D4' : 'transparent',
+                              color:      activa ? '#003F4F' : 'rgba(255,255,255,0.65)',
+                              boxShadow:  activa ? '0 2px 8px rgba(0,196,212,0.35)' : 'none',
+                            }}
+                            onMouseOver={e => { if (!activa) e.currentTarget.style.color = 'rgba(255,255,255,0.95)' }}
+                            onMouseOut={e => { if (!activa) e.currentTarget.style.color = 'rgba(255,255,255,0.65)' }}
+                          >
+                            <span className="text-base">{b.icon}</span>
+                            <span>{b.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <p className="text-[11px] text-secondary/70 mt-1.5">
+                      Filtra pólizas por <code className="text-cyan-bright/80">{BODEGAS.find(b => b.id === bodega)?.filtro}</code>
+                    </p>
                   </div>
 
                   {/* Zonas de upload */}

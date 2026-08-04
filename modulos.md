@@ -662,6 +662,8 @@ Este módulo hace todo eso automáticamente y devuelve el mismo archivo `INVENTA
 
 **No importa el orden de subida**: el backend detecta cuál archivo es cuál por contenido.
 
+**Bodega**: el frontend pide seleccionar entre `Pastelería` (default) y `Zapatoca` (panadería). El backend recibe el campo `bodega` y ajusta el filtro de pólizas en consecuencia.
+
 ---
 
 ### Lógica de procesamiento
@@ -683,7 +685,9 @@ Del B1 del stock (`Stock al 2026-07-31`) se parsea la fecha → mes = JULIO, añ
 
 #### 3. Construcción del pool desde Pólizas
 - Se lee la hoja con encabezado "Detalle" en I8.
-- Se filtran filas donde col I contiene (case-insensitive) `PRODUCTO: MATERIA PRIMA VARIOS`.
+- Se filtran filas según la **bodega** seleccionada en el frontend:
+  - **Pastelería** (default): incluye `Producto: MATERIA PRIMA VARIOS`.
+  - **Zapatoca** (panadería): incluye cualquier `Producto:` PERO excluye `Producto: MATERIA PRIMA VARIOS` (para poder procesar un archivo de pólizas mezclado sin doble-conteo).
 - Se extrae H (descripción) + K (débito).
 - Se agrupa por descripción (con `.strip()`) sumando débitos.
 

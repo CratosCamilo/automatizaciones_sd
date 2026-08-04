@@ -49,7 +49,21 @@ COL_SOB_NOMBRE   = 9   # I
 COL_SOB_COMPRAS  = 10  # J
 COL_SOB_CANTIDAD = 11  # K
 
-FILTRO_DETALLE = 'PRODUCTO: MATERIA PRIMA VARIOS'  # busca case-insensitive
+# Filtros por bodega. Cada bodega tiene:
+#   include: substring que DEBE estar en la col "Detalle" (case-insensitive).
+#   exclude: substring que NO debe estar (opcional).
+# Pastelería captura solo "Producto: MATERIA PRIMA VARIOS".
+# Zapatoca (panadería) captura cualquier "Producto: X" pero excluye MATERIA PRIMA VARIOS
+# por si el mismo archivo de pólizas tiene filas de ambas bodegas mezcladas.
+FILTROS_BODEGA = {
+    'pasteleria': {'include': 'PRODUCTO: MATERIA PRIMA VARIOS', 'exclude': None},
+    'zapatoca':   {'include': 'PRODUCTO:',                       'exclude': 'PRODUCTO: MATERIA PRIMA VARIOS'},
+}
+BODEGA_DEFAULT = 'pasteleria'
+
+# Prefijo genérico que identifica una fila de pólizas con producto (para detección
+# del tipo de archivo — vale para cualquier bodega).
+DETECCION_PRODUCTO = 'PRODUCTO:'
 
 # Pólizas: layout observado
 POL_HEADER_ROW    = 8
@@ -127,10 +141,10 @@ def _es_polizas(wb):
         h_detalle = _s(ws.cell(POL_HEADER_ROW, POL_COL_DETALLE).value).strip().upper()
         if 'DETALLE' not in h_detalle:
             continue
-        # buscar al menos una fila con el patrón
+        # buscar al menos una fila con "Producto:" (vale para pastelería o zapatoca)
         for r in range(POL_HEADER_ROW + 1, min(ws.max_row, POL_HEADER_ROW + 200) + 1):
             det = _s(ws.cell(r, POL_COL_DETALLE).value).upper()
-            if FILTRO_DETALLE in det:
+            if DETECCION_PRODUCTO in det:
                 return True
     return False
 
@@ -219,8 +233,17 @@ def extraer_mes_desde_stock(stock_bytes):
 # CONSTRUIR POOL DESDE PÓLIZAS
 # ─────────────────────────────────────────────────────────────────────────────
 
-def construir_pool(polizas_bytes):
-    """Retorna dict {nombre.strip(): suma_debito}."""
+def construir_pool(polizas_bytes, bodega):
+    """Retorna dict {nombre.strip(): suma_debito}.
+    bodega: 'pasteleria' → filtra por MATERIA PRIMA VARIOS.
+            'zapatoca'   → filtra por cualquier 'Producto:'.
+    """
+    regla = FILTROS_BODEGA.get(bodega)
+    if regla is None:
+        raise ValueError(f'Bodega desconocida: {bodega!r}. Valores válidos: {list(FILTROS_BODEGA)}')
+    incluir  = regla['include']
+    excluir  = regla['exclude']
+
     wb = openpyxl.load_workbook(io.BytesIO(polizas_bytes), data_only=True)
     # Buscar la hoja correcta (la que tiene "Detalle" en I8)
     ws = None
@@ -237,7 +260,9 @@ def construir_pool(polizas_bytes):
     pool = {}
     for r in range(POL_HEADER_ROW + 1, ws.max_row + 1):
         detalle = _s(ws.cell(r, POL_COL_DETALLE).value).upper()
-        if FILTRO_DETALLE not in detalle:
+        if incluir not in detalle:
+            continue
+        if excluir and excluir in detalle:
             continue
         nombre = _s(ws.cell(r, POL_COL_DESCRIP).value).strip()
         debito = _num(ws.cell(r, POL_COL_DEBITO).value)
@@ -480,10 +505,14 @@ class handler(BaseHTTPRequestHandler):
 
             cargados = [(c, base64.b64decode(data[c])) for c in campos]
 
+            bodega = _s(data.get('bodega', BODEGA_DEFAULT)).strip().lower() or BODEGA_DEFAULT
+            if bodega not in FILTROS_BODEGA:
+                return self._error(400, f'Bodega inválida: {bodega!r}. Valores válidos: {list(FILTROS_BODEGA)}')
+
             archivos = detectar_archivos(cargados)
 
             mes_objetivo, anio, _dia = extraer_mes_desde_stock(archivos['stock'])
-            pool  = construir_pool(archivos['polizas'])
+            pool  = construir_pool(archivos['polizas'], bodega)
             stock = construir_stock(archivos['stock'])
 
             output_bytes, stats = generar_output(
