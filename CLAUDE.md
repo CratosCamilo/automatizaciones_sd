@@ -105,7 +105,7 @@ git push origin main  # Vercel detecta el push y despliega automáticamente
 | 1 | Conciliación DIAN vs Siigo | `/conciliacion` | `api/conciliacion.py` |
 | 2 | Bancos Semanal | `/movimientos` | `api/movimientos.py` |
 | 3 | Davivienda Quincenal | `/davivienda` | `api/davivienda.py` |
-| 4 | Cta Ahorros Caja Social | `/cta-ahorros` | `api/cta_ahorros.py` |
+| 4 | Caja Social Cta Ahorros | `/cta-ahorros` | `api/cta_ahorros.py` |
 | 5 | Caja Social Mensual | `/caja-social-nueva` | `api/caja_social_nueva.py` |
 | 6 | DIAN vs Inventario Zapatoca | `/zapatoca` | `api/zapatoca.py` |
 | 7 | Costeo | `/inventario-mensual` | `api/inventario_mensual.py` |

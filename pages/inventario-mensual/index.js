@@ -46,8 +46,8 @@ function ModalComoFunciona({ onClose }) {
               <li>Pasa <em>INV FINAL</em> del mes anterior a <em>INV INICIAL</em> del nuevo mes.</li>
               <li>Filtra las pólizas de Siigo por <em>Producto: MATERIA PRIMA VARIOS</em> y consolida por descripción.</li>
               <li>Cruza los nombres del pool contra el inventario y rellena la columna <em>COMPRAS</em>.</li>
-              <li>Cruza los nombres del stock físico y rellena la columna <em>CANTIDAD</em>.</li>
-              <li>Los que no matchean quedan a la derecha (columnas I-K) para revisar manualmente.</li>
+              <li>Cruza los nombres del stock físico (hojas <em>Producción</em> y <em>Empaques</em>) y rellena la columna <em>CANTIDAD</em>.</li>
+              <li>Los que no matchean quedan a la derecha (columnas I-K): arriba pool + producción, y debajo empaques como categoría aparte.</li>
             </ul>
           </section>
 

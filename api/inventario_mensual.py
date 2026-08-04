@@ -277,31 +277,52 @@ def construir_pool(polizas_bytes, bodega):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def construir_stock(stock_bytes):
-    """Retorna dict {nombre.strip(): cantidad} solo de la hoja Producción."""
+    """Retorna {'produccion': {...}, 'empaques': {...}}.
+    Cada dict mapea nombre.strip() → cantidad.
+    Empaques es una categoría distinta (envases/materiales) y se trata aparte:
+    los sobrantes de empaques van a un bloque separado debajo del principal.
+    """
     wb = openpyxl.load_workbook(io.BytesIO(stock_bytes), data_only=True)
-    ws = None
-    for sn in wb.sheetnames:
-        # buscar la hoja "Producción" (con o sin tilde), fallback a la primera con schema válido
-        if 'PRODUCC' in sn.upper():
-            ws = wb[sn]
-            break
-    if ws is None:
-        # fallback a la activa si no encuentra "Producción"
-        ws = wb.active
 
-    stock = {}
-    for r in range(2, ws.max_row + 1):
-        nombre = _s(ws.cell(r, 1).value).strip()
-        cantidad = ws.cell(r, 2).value
-        if not nombre:
-            continue
-        # cantidad puede ser 0 → igual la guardamos para que aparezca en el inventario
-        try:
-            cantidad_num = float(cantidad) if cantidad not in (None, '') else 0
-        except (TypeError, ValueError):
-            cantidad_num = 0
-        stock[nombre] = cantidad_num
-    return stock
+    resultado = {'produccion': {}, 'empaques': {}}
+
+    for sn in wb.sheetnames:
+        sn_upper = sn.upper()
+        if 'PRODUCC' in sn_upper:
+            categoria = 'produccion'
+        elif 'EMPAQUE' in sn_upper:
+            categoria = 'empaques'
+        else:
+            continue  # ignora hojas desconocidas
+
+        ws = wb[sn]
+        for r in range(2, ws.max_row + 1):
+            nombre = _s(ws.cell(r, 1).value).strip()
+            cantidad = ws.cell(r, 2).value
+            if not nombre:
+                continue
+            try:
+                cantidad_num = float(cantidad) if cantidad not in (None, '') else 0
+            except (TypeError, ValueError):
+                cantidad_num = 0
+            resultado[categoria][nombre] = cantidad_num
+
+    # Fallback: si no hay hojas "Producción"/"Empaques" reconocibles, usa la activa
+    # como producción (mantiene el comportamiento anterior si el archivo cambia).
+    if not resultado['produccion'] and not resultado['empaques']:
+        ws = wb.active
+        for r in range(2, ws.max_row + 1):
+            nombre = _s(ws.cell(r, 1).value).strip()
+            cantidad = ws.cell(r, 2).value
+            if not nombre:
+                continue
+            try:
+                cantidad_num = float(cantidad) if cantidad not in (None, '') else 0
+            except (TypeError, ValueError):
+                cantidad_num = 0
+            resultado['produccion'][nombre] = cantidad_num
+
+    return resultado
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -372,9 +393,10 @@ def generar_output(inv_bytes, mes_objetivo, anio, pool, stock):
     compras_ok = 0
     cantidad_ok = 0
 
-    # Copias mutables del pool y stock (para ir quitando lo matcheado)
-    pool_mut  = dict(pool)
-    stock_mut = dict(stock)
+    # Copias mutables del pool y stocks (para ir quitando lo matcheado)
+    pool_mut       = dict(pool)
+    produccion_mut = dict(stock.get('produccion', {}))
+    empaques_mut   = dict(stock.get('empaques',   {}))
 
     for r in range(3, last_data_row + 1):
         nombre_cell = ws_new.cell(r, COL_NOMBRE)
@@ -393,10 +415,13 @@ def generar_output(inv_bytes, mes_objetivo, anio, pool, stock):
 
         # UNITARIO: se conserva (copy_worksheet ya lo trajo, no lo tocamos)
 
-        # CANTIDAD: limpia primero, luego busca match en stock
+        # CANTIDAD: limpia primero. Busca match primero en producción, luego en empaques.
         ws_new.cell(r, COL_CANTIDAD).value = None
-        if nombre_key and nombre_key in stock_mut:
-            ws_new.cell(r, COL_CANTIDAD).value = stock_mut.pop(nombre_key)
+        if nombre_key and nombre_key in produccion_mut:
+            ws_new.cell(r, COL_CANTIDAD).value = produccion_mut.pop(nombre_key)
+            cantidad_ok += 1
+        elif nombre_key and nombre_key in empaques_mut:
+            ws_new.cell(r, COL_CANTIDAD).value = empaques_mut.pop(nombre_key)
             cantidad_ok += 1
 
         # INV FINAL: fórmula
@@ -422,42 +447,68 @@ def generar_output(inv_bytes, mes_objetivo, anio, pool, stock):
         for c in range(COL_SOB_NOMBRE, COL_SOB_CANTIDAD + 1):
             ws_new.cell(r, c).value = None
 
-    # Escribir bloque de sobrantes en col I-K
-    # Combinar: unión de nombres pendientes de pool y stock
-    todos_sobrantes = sorted(set(pool_mut.keys()) | set(stock_mut.keys()))
+    # Estilos comunes para los bloques de sobrantes
+    header_font  = Font(name=FUENTE, bold=True, size=12, color=COLOR_HEADER_SOB_FG)
+    header_fill  = PatternFill(start_color=COLOR_HEADER_SOB_BG, end_color=COLOR_HEADER_SOB_BG, fill_type='solid')
+    header_align = Alignment(horizontal='center', vertical='center')
+    data_font    = Font(name=FUENTE, size=12)
 
-    if todos_sobrantes:
-        # Headers en fila 2
-        header_font = Font(name=FUENTE, bold=True, size=12, color=COLOR_HEADER_SOB_FG)
-        header_fill = PatternFill(start_color=COLOR_HEADER_SOB_BG, end_color=COLOR_HEADER_SOB_BG, fill_type='solid')
-        header_align = Alignment(horizontal='center', vertical='center')
+    # ── Bloque 1: pool (Siigo) + producción (stock hoja Producción) ──────────
+    # Combina los nombres pendientes de ambos: cada fila muestra lo que aplique.
+    fila_actual = 2
+    sob_principales = sorted(set(pool_mut.keys()) | set(produccion_mut.keys()))
 
+    if sob_principales:
         headers = [
             (COL_SOB_NOMBRE,   'NOMBRE PENDIENTE'),
             (COL_SOB_COMPRAS,  'COMPRAS (pool)'),
-            (COL_SOB_CANTIDAD, 'CANTIDAD (stock)'),
+            (COL_SOB_CANTIDAD, 'CANTIDAD (producción)'),
         ]
         for col, txt in headers:
-            c = ws_new.cell(2, col, value=txt)
+            c = ws_new.cell(fila_actual, col, value=txt)
             c.font = header_font
             c.fill = header_fill
             c.alignment = header_align
+        fila_actual += 1
 
-        # Filas de datos desde fila 3
-        data_font = Font(name=FUENTE, size=12)
-        for i, nombre in enumerate(todos_sobrantes, start=3):
-            ws_new.cell(i, COL_SOB_NOMBRE,   value=nombre).font = data_font
+        for nombre in sob_principales:
+            ws_new.cell(fila_actual, COL_SOB_NOMBRE, value=nombre).font = data_font
             v_comp = pool_mut.get(nombre)
-            v_cant = stock_mut.get(nombre)
+            v_cant = produccion_mut.get(nombre)
             if v_comp is not None:
-                ws_new.cell(i, COL_SOB_COMPRAS,  value=v_comp).font = data_font
+                ws_new.cell(fila_actual, COL_SOB_COMPRAS,  value=v_comp).font = data_font
             if v_cant is not None:
-                ws_new.cell(i, COL_SOB_CANTIDAD, value=v_cant).font = data_font
+                ws_new.cell(fila_actual, COL_SOB_CANTIDAD, value=v_cant).font = data_font
+            fila_actual += 1
 
-        # Ancho de columnas del bloque de sobrantes
+    # ── Bloque 2: empaques (stock hoja Empaques) — categoría aparte ──────────
+    # Va DEBAJO del bloque principal, con 1 fila en blanco como separador.
+    sob_empaques = sorted(empaques_mut.keys())
+
+    if sob_empaques:
+        fila_actual += 1  # separador visual
+
+        headers_emp = [
+            (COL_SOB_NOMBRE,   'EMPAQUES PENDIENTES'),
+            (COL_SOB_CANTIDAD, 'CANTIDAD (empaques)'),
+        ]
+        for col, txt in headers_emp:
+            c = ws_new.cell(fila_actual, col, value=txt)
+            c.font = header_font
+            c.fill = header_fill
+            c.alignment = header_align
+        fila_actual += 1
+
+        for nombre in sob_empaques:
+            ws_new.cell(fila_actual, COL_SOB_NOMBRE,   value=nombre).font = data_font
+            ws_new.cell(fila_actual, COL_SOB_CANTIDAD, value=empaques_mut[nombre]).font = data_font
+            fila_actual += 1
+
+    # Ancho de columnas de los bloques de sobrantes (si escribimos algo)
+    if sob_principales or sob_empaques:
         ws_new.column_dimensions['I'].width = 40
         ws_new.column_dimensions['J'].width = 18
-        ws_new.column_dimensions['K'].width = 18
+        ws_new.column_dimensions['K'].width = 20
 
     buf = io.BytesIO()
     wb_form.save(buf)
@@ -468,7 +519,7 @@ def generar_output(inv_bytes, mes_objetivo, anio, pool, stock):
         'compras_ok':           compras_ok,
         'compras_pendientes':   len(pool_mut),
         'cantidad_ok':          cantidad_ok,
-        'cantidad_pendientes':  len(stock_mut),
+        'cantidad_pendientes':  len(produccion_mut) + len(empaques_mut),
     }
     return buf.read(), stats
 

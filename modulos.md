@@ -306,7 +306,7 @@ X-Extras:     entradas de Redeban sin match en Davivienda (debería ser 0)
 
 ---
 
-## Módulo 4 — Cta Ahorros Caja Social
+## Módulo 4 — Caja Social Cta Ahorros
 
 **Ruta web**: `/cta-ahorros`  
 **Función backend**: `api/cta_ahorros.py`  
@@ -656,7 +656,7 @@ Este módulo hace todo eso automáticamente y devuelve el mismo archivo `INVENTA
 |---------|---------|--------|
 | Pólizas detalladas | `.xlsx` | Exportado de Siigo → Pólizas detalladas (hoja "ASÍ SALE"). Encabezados en fila 8, datos desde fila 9. |
 | INVENTARIO YYYY | `.xlsx` | Archivo maestro anual con una hoja por mes (ENERO, FEBRERO, …). Fila 2 tiene los headers NOMBRE / INV INICIAL / COMPRAS / UNITARIO / CANTIDAD / INV FINAL / COSTEO. |
-| Stock al YYYY-MM-DD | `.xlsx` | Reporte del stock físico. Hoja "Producción" con headers en fila 1 (Producto / Stock al YYYY-MM-DD / Unidad / Mínimo). |
+| Stock al YYYY-MM-DD | `.xlsx` | Reporte del stock físico. Dos hojas obligatorias: `Producción` (materia prima) y `Empaques` (envases/materiales). Ambas con headers en fila 1 (Producto / Stock al YYYY-MM-DD / Unidad / Mínimo). |
 
 **No se piden fechas ni mes**: el mes se auto-detecta desde el header B1 del stock (`Stock al 2026-07-31` → JULIO 2026).
 
@@ -691,9 +691,12 @@ Del B1 del stock (`Stock al 2026-07-31`) se parsea la fecha → mes = JULIO, añ
 - Se extrae H (descripción) + K (débito).
 - Se agrupa por descripción (con `.strip()`) sumando débitos.
 
-#### 4. Construcción del diccionario de stock
-- Solo hoja "Producción" (o la activa como fallback).
-- Se lee desde la fila 2: col A (nombre) → col B (cantidad).
+#### 4. Construcción de los diccionarios de stock
+Se leen las dos hojas del archivo de stock por separado, manteniendo la categoría:
+- **Producción** (materia prima): dict `{nombre: cantidad}` desde fila 2.
+- **Empaques** (envases/materiales): dict `{nombre: cantidad}` desde fila 2.
+
+Ambos alimentan la columna `CANTIDAD` del inventario. Producción se busca primero; empaques después (por si un nombre está en ambos, gana producción).
 
 #### 5. Generación de la hoja nueva
 - Se duplica la hoja del mes anterior con `wb.copy_worksheet` (preserva estilos, fórmulas, anchos de columna).
@@ -707,16 +710,25 @@ Del B1 del stock (`Stock al 2026-07-31`) se parsea la fecha → mes = JULIO, añ
   - `INV FINAL` (col F) → fórmula `=+D{r}*E{r}`.
   - `COSTEO` (col G) → fórmula `=+B{r}+C{r}-F{r}`.
 
-#### 6. Bloque de sobrantes
-Después de recorrer todas las filas, los ítems no matcheados (residuo del pool + residuo del stock) se unen en un solo bloque a la derecha del inventario, dejando col H libre como separador:
+#### 6. Bloques de sobrantes
+Después de recorrer todas las filas, los ítems no matcheados se escriben a la derecha del inventario (dejando col H libre como separador). Son **dos bloques** apilados verticalmente para preservar la separación por categoría:
+
+**Bloque 1** (pool + producción, top): cols I-K, headers en fila 2.
 
 | Col | Contenido |
 |-----|-----------|
-| I   | NOMBRE PENDIENTE (unión ordenada alfabéticamente) |
+| I   | NOMBRE PENDIENTE (unión ordenada alfabéticamente de pool + producción) |
 | J   | COMPRAS (pool) — valor del pool si el nombre venía de ahí |
-| K   | CANTIDAD (stock) — valor del stock si el nombre venía de ahí |
+| K   | CANTIDAD (producción) — valor del stock producción si venía de ahí |
 
-Un mismo nombre puede tener valor solo en J, solo en K, o ambos. Header con fondo naranja claro (`#FDE9D9`) y negrilla.
+**Bloque 2** (empaques, debajo del bloque 1 con una fila de separación): cols I y K.
+
+| Col | Contenido |
+|-----|-----------|
+| I   | EMPAQUES PENDIENTES (ordenados alfabéticamente) |
+| K   | CANTIDAD (empaques) |
+
+Ambos headers con fondo naranja claro (`#FDE9D9`) y negrilla.
 
 **No se modifican las hojas de los meses anteriores.**
 

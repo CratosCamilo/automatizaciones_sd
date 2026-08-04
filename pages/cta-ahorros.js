@@ -190,7 +190,7 @@ export default function CtaAhorros() {
   }
 
   return (
-    <Layout title="Cta Ahorros Caja Social — Slendy Automatizaciones">
+    <Layout title="Caja Social Cta Ahorros — Slendy Automatizaciones">
       {modal && <ModalComoFunciona onClose={() => setModal(false)} />}
       <div className="min-h-[calc(100vh-48px)] px-6 py-8">
         <div className="max-w-xl mx-auto">
@@ -199,7 +199,7 @@ export default function CtaAhorros() {
           <div className="flex items-center gap-2 text-xs text-secondary mb-6">
             <Link href="/" className="hover:text-white transition-colors">Inicio</Link>
             <span>/</span>
-            <span className="text-white">Cta Ahorros Caja Social</span>
+            <span className="text-white">Caja Social Cta Ahorros</span>
           </div>
 
           {/* Card principal */}
@@ -212,7 +212,7 @@ export default function CtaAhorros() {
                   <span className="text-2xl">🏦</span>
                   <div>
                     <h1 className="text-white font-semibold text-[17px] leading-tight">
-                      Cta Ahorros Caja Social
+                      Caja Social Cta Ahorros
                     </h1>
                     <p className="text-secondary text-xs mt-0.5">
                       Cruza el banco con Siigo y arma las hojas de conciliación

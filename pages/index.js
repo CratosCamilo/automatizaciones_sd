@@ -40,7 +40,7 @@ const MODULOS = [
       { src: '/logos/CajaSocial.png', alt: 'Banco Caja Social' },
       { src: '/logos/Siigo.png',      alt: 'Siigo'             },
     ],
-    nombre: 'Cta Ahorros Caja Social',
+    nombre: 'Caja Social Cta Ahorros',
     descripcion: 'Concilia la cuenta de ahorros de Caja Social con Siigo por débitos y créditos.',
   },
   {
