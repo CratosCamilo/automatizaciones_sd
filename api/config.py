@@ -167,7 +167,7 @@ def blob_get_json(pathname, default=None):
     if not base:
         return default
     import time
-    url = f'{base}/{pathname}?t={int(time.time())}'
+    url = f'{base}/{pathname}?t={time.time_ns()}'
     try:
         req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
         with urllib.request.urlopen(req, timeout=5) as resp:

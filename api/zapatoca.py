@@ -139,7 +139,7 @@ def cargar_proveedores_excluidos():
     if base:
         try:
             import time
-            url = f'{base}/{BLOB_PATHNAME_PROVEEDORES}?t={int(time.time())}'
+            url = f'{base}/{BLOB_PATHNAME_PROVEEDORES}?t={time.time_ns()}'
             req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode('utf-8'))

@@ -97,7 +97,7 @@ def cargar_alias_map():
     if base:
         try:
             import time
-            url = f'{base}/{BLOB_PATHNAME_ALIAS}?t={int(time.time())}'
+            url = f'{base}/{BLOB_PATHNAME_ALIAS}?t={time.time_ns()}'
             req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
