@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Layout from '../components/Layout'
 import UploadZone from '../components/UploadZone'
 import DateRangePicker from '../components/DateRangePicker'
+import ListEditor from '../components/ListEditor'
 
 function ModalComoFunciona({ onClose }) {
   return (
@@ -109,6 +110,7 @@ export default function Davivienda() {
   const [resultado, setResultado] = useState(null)
   const [errorMsg, setErrorMsg]   = useState('')
   const [modal, setModal]         = useState(false)
+  const [editor, setEditor]       = useState(false)
 
   const puedeEnviar = davFile && redebanFile && fechaIni && fechaFin && estado !== 'loading'
 
@@ -175,6 +177,18 @@ export default function Davivienda() {
   return (
     <Layout title="Davivienda + Redeban — Slendy Automatizaciones">
       {modal && <ModalComoFunciona onClose={() => setModal(false)} />}
+      {editor && (
+        <ListEditor
+          name="alias"
+          title="Alias de nombres Redeban"
+          subtitle="Tokens abreviados (ej: CAR ALB PLA PIM) → apodo corto"
+          columns={[
+            { key: 'clave', label: 'Clave (tokens)', placeholder: 'CAR ALB PLA PIM', width: '45%' },
+            { key: 'alias', label: 'Alias',          placeholder: 'POLLO' },
+          ]}
+          onClose={() => setEditor(false)}
+        />
+      )}
       <div className="min-h-[calc(100vh-48px)] px-6 py-8">
         <div className="max-w-xl mx-auto">
 
@@ -202,15 +216,25 @@ export default function Davivienda() {
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setModal(true)}
-                  className="flex-shrink-0 text-xs transition-colors"
-                  style={{ color: 'rgba(0,196,212,0.8)' }}
-                  onMouseOver={e => e.currentTarget.style.color = '#00C4D4'}
-                  onMouseOut={e => e.currentTarget.style.color = 'rgba(0,196,212,0.8)'}
-                >
-                  ¿Cómo funciona?
-                </button>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <button
+                    onClick={() => setEditor(true)}
+                    className="text-white/50 hover:text-cyan-bright transition-colors text-lg leading-none"
+                    title="Editar alias de nombres Redeban"
+                    aria-label="Editar alias de nombres Redeban"
+                  >
+                    ⚙️
+                  </button>
+                  <button
+                    onClick={() => setModal(true)}
+                    className="text-xs transition-colors"
+                    style={{ color: 'rgba(0,196,212,0.8)' }}
+                    onMouseOver={e => e.currentTarget.style.color = '#00C4D4'}
+                    onMouseOut={e => e.currentTarget.style.color = 'rgba(0,196,212,0.8)'}
+                  >
+                    ¿Cómo funciona?
+                  </button>
+                </div>
               </div>
             </div>
 

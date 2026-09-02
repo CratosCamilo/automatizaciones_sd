@@ -7,7 +7,9 @@ from http.server import BaseHTTPRequestHandler
 import base64
 import io
 import json
+import os
 import re
+import urllib.request
 import zipfile
 
 import openpyxl
@@ -37,7 +39,12 @@ DIAN_KEEP = [
 # muestran como "falta en sistema"; si aparecen en Zapatoca no se muestran
 # como "extra en sistema". Son consumos del negocio (servicios, mercados
 # personales, etc.) que no pasan por el inventario.
-PROVEEDORES_EXCLUIDOS = [
+#
+# Esta lista es el SEED / FALLBACK. La lista efectiva se lee del Blob
+# público en cada request (ver `cargar_proveedores_excluidos` abajo).
+# Slendy edita la lista desde la UI del módulo (icono de engranaje) y se
+# persiste en Vercel Blob (`config/proveedores.json`).
+DEFAULT_PROVEEDORES_EXCLUIDOS = [
     ('900039901',  'ENERTOTAL S.A. E.S.P.'),
     ('39028745',   'ACEVEDO DE PINILLA LEONOR'),
     ('830055643',  'CINEMARK COLOMBIA S.A.S.'),
@@ -106,7 +113,47 @@ PROVEEDORES_EXCLUIDOS = [
     ('860003981',  'COLMAQUINAS S.A.'),
 ]
 
-NITS_EXCLUIDOS = {n for n, _ in PROVEEDORES_EXCLUIDOS}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LECTURA DINÁMICA DE LA LISTA DESDE VERCEL BLOB
+# ─────────────────────────────────────────────────────────────────────────────
+
+BLOB_PATHNAME_PROVEEDORES = 'config/proveedores.json'
+
+
+def _blob_base_url():
+    """Deriva la URL pública del Blob store desde el RW token.
+    Token formato: 'vercel_blob_rw_<STORE_ID>_<random>'."""
+    token = os.environ.get('BLOB_READ_WRITE_TOKEN', '')
+    parts = token.split('_')
+    if len(parts) < 5 or parts[0] != 'vercel' or parts[1] != 'blob':
+        return None
+    return f'https://{parts[3].lower()}.public.blob.vercel-storage.com'
+
+
+def cargar_proveedores_excluidos():
+    """Devuelve la lista efectiva de proveedores excluidos.
+    Intenta leer del Blob; si falla o está vacío, cae a los defaults.
+    Formato interno: lista de tuplas (nit, nombre)."""
+    base = _blob_base_url()
+    if base:
+        try:
+            url = f'{base}/{BLOB_PATHNAME_PROVEEDORES}'
+            req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+            if isinstance(data, list) and data:
+                out = []
+                for item in data:
+                    nit = str(item.get('nit', '')).strip()
+                    nom = str(item.get('nombre', '')).strip()
+                    if nit and nom:
+                        out.append((nit, nom))
+                if out:
+                    return out
+        except Exception:
+            pass
+    return DEFAULT_PROVEEDORES_EXCLUIDOS
 
 COLS_MONETARIAS_DIAN = {'IVA', 'Total'}
 FMT_MILES   = '#,##0.##'
@@ -176,7 +223,7 @@ def _folio_solo(zap_folio):
 # PROCESAMIENTO DIAN
 # ─────────────────────────────────────────────────────────────────────────────
 
-def procesar_dian(zip_bytes):
+def procesar_dian(zip_bytes, nits_excluidos):
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         xlsx_names = [n for n in zf.namelist() if n.lower().endswith('.xlsx')]
         if not xlsx_names:
@@ -218,7 +265,7 @@ def procesar_dian(zip_bytes):
         nit = str(fila['NIT Emisor']).strip() if fila['NIT Emisor'] is not None else ''
         fila['NIT Emisor'] = nit
 
-        if nit in NITS_EXCLUIDOS:
+        if nit in nits_excluidos:
             continue
 
         fila['_key'] = _normalize_key(fila['Prefijo']) + _normalize_key(_folio_str(fila['Folio']))
@@ -358,7 +405,7 @@ def _escribir_fila_zap(ws, r, z):
     ws.cell(row=r, column=15, value=_clean(z['Proveedor']))
 
 
-def generar_output(matched, dian_only, zap_only):
+def generar_output(matched, dian_only, zap_only, proveedores_excluidos):
     wb = Workbook()
     ws = wb.active
     ws.title = 'Hoja1'
@@ -457,7 +504,7 @@ def generar_output(matched, dian_only, zap_only):
     ws2 = wb.create_sheet('BORRAR ESTOS PROVEEDORES')
     fill_excl = _fill(COLOR_FALTA_BG)
     font_excl = Font(name=FUENTE, color=COLOR_TEXTO, size=11)
-    for i, (nit, nombre) in enumerate(PROVEEDORES_EXCLUIDOS, start=1):
+    for i, (nit, nombre) in enumerate(proveedores_excluidos, start=1):
         c1 = ws2.cell(row=i, column=1, value=nit)
         c2 = ws2.cell(row=i, column=2, value=nombre)
         for c in (c1, c2):
@@ -504,12 +551,16 @@ class handler(BaseHTTPRequestHandler):
             zip_bytes  = base64.b64decode(data['dian'])
             xlsx_bytes = base64.b64decode(data['zapatoca'])
 
-            dian_filas = procesar_dian(zip_bytes)
+            # Lista dinámica de excluidos (leída del Blob en cada request)
+            proveedores_excluidos = cargar_proveedores_excluidos()
+            nits_excluidos = {nit for nit, _ in proveedores_excluidos}
+
+            dian_filas = procesar_dian(zip_bytes, nits_excluidos)
             zap_filas  = procesar_zapatoca(xlsx_bytes)
 
             matched, dian_only, zap_only = cruzar(dian_filas, zap_filas)
 
-            output_bytes = generar_output(matched, dian_only, zap_only)
+            output_bytes = generar_output(matched, dian_only, zap_only, proveedores_excluidos)
 
             self.send_response(200)
             self.send_header('Content-Type',

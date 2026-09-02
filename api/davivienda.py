@@ -16,7 +16,9 @@ import base64
 import csv
 import io
 import json
+import os
 import re
+import urllib.request
 from collections import defaultdict
 from datetime import datetime, date
 
@@ -35,7 +37,12 @@ LLAVE_KEYS = {'Pago A Llave De Comercio', 'Pago A Llave Comercio'}
 
 # Nombres abreviados que Redeban envía → apodo corto para identificar rápido.
 # La clave es los tokens alfabéticos del nombre, en mayúsculas, separados por espacio.
-ALIAS_MAP = {
+#
+# Este dict es el SEED / FALLBACK. El map efectivo se lee del Blob público
+# en cada request (ver `cargar_alias_map` abajo). Slendy edita desde la UI
+# del módulo (icono de engranaje) y se persiste en Vercel Blob
+# (`config/alias.json`).
+DEFAULT_ALIAS_MAP = {
     'CAR ALB PLA PIM':    'POLLO',
     'SUL LAU VID SAN':    'WALDIR',
     'YOL PEN GUT':        'ENRIQUE',
@@ -68,8 +75,47 @@ ALIAS_MAP = {
 }
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# LECTURA DINÁMICA DEL ALIAS_MAP DESDE VERCEL BLOB
+# ─────────────────────────────────────────────────────────────────────────────
+
+BLOB_PATHNAME_ALIAS = 'config/alias.json'
+
+
+def _blob_base_url():
+    """Deriva la URL pública del Blob store desde el RW token."""
+    token = os.environ.get('BLOB_READ_WRITE_TOKEN', '')
+    parts = token.split('_')
+    if len(parts) < 5 or parts[0] != 'vercel' or parts[1] != 'blob':
+        return None
+    return f'https://{parts[3].lower()}.public.blob.vercel-storage.com'
+
+
+def cargar_alias_map():
+    """Devuelve el dict efectivo {clave: alias}. Intenta Blob, si falla usa defaults."""
+    base = _blob_base_url()
+    if base:
+        try:
+            url = f'{base}/{BLOB_PATHNAME_ALIAS}'
+            req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+            if isinstance(data, list) and data:
+                out = {}
+                for item in data:
+                    k = str(item.get('clave', '')).strip()
+                    v = str(item.get('alias', '')).strip()
+                    if k and v:
+                        out[k] = v
+                if out:
+                    return out
+        except Exception:
+            pass
+    return DEFAULT_ALIAS_MAP
+
+
 def _alias_key(s):
-    """'CAR*** ALB*** PLA*** PIM***' → 'CAR ALB PLA PIM' (para buscar en ALIAS_MAP)."""
+    """'CAR*** ALB*** PLA*** PIM***' → 'CAR ALB PLA PIM' (para buscar en alias_map)."""
     return ' '.join(t.upper() for t in re.findall(r'[A-Za-z]+', s))
 
 
@@ -235,10 +281,10 @@ def aplicar_nombres(dav_rows, redeban_entries):
     return matched, unmatched, extras
 
 
-def aplicar_alias(rows):
+def aplicar_alias(rows, alias_map):
     """Reemplaza nombres abreviados de Redeban (CAR*** ALB***…) por apodos cortos."""
     for r in rows:
-        alias = ALIAS_MAP.get(_alias_key(r['desc']))
+        alias = alias_map.get(_alias_key(r['desc']))
         if alias:
             r['desc'] = alias
 
@@ -336,7 +382,8 @@ class handler(BaseHTTPRequestHandler):
             redeban_entries = parse_redeban(csv_bytes, fecha_ini, fecha_fin)
 
             matched, unmatched, extras = aplicar_nombres(dav_rows, redeban_entries)
-            aplicar_alias(dav_rows)
+            alias_map = cargar_alias_map()  # lee del Blob en cada request
+            aplicar_alias(dav_rows, alias_map)
             output = generar_excel(dav_rows)
 
             mes = MESES.get(fecha_ini.month, str(fecha_ini.month))

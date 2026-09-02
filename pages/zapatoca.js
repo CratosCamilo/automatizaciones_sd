@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Layout from '../components/Layout'
 import UploadZone from '../components/UploadZone'
+import ListEditor from '../components/ListEditor'
 
 function ModalComoFunciona({ onClose }) {
   return (
@@ -110,6 +111,7 @@ export default function Zapatoca() {
   const [resultado,    setResultado]    = useState(null)
   const [errorMsg,     setErrorMsg]     = useState('')
   const [modalAbierto, setModal]        = useState(false)
+  const [editorAbierto, setEditor]      = useState(false)
 
   const puedeEnviar = dianFile && zapFile && estado !== 'loading'
 
@@ -172,6 +174,18 @@ export default function Zapatoca() {
   return (
     <Layout title="Conciliación DIAN vs Zapatoca">
       {modalAbierto && <ModalComoFunciona onClose={() => setModal(false)} />}
+      {editorAbierto && (
+        <ListEditor
+          name="proveedores"
+          title="Proveedores excluidos"
+          subtitle="NITs que se ignoran al cruzar DIAN vs inventario"
+          columns={[
+            { key: 'nit',    label: 'NIT',    placeholder: '900123456', width: '140px' },
+            { key: 'nombre', label: 'Nombre', placeholder: 'RAZÓN SOCIAL' },
+          ]}
+          onClose={() => setEditor(false)}
+        />
+      )}
       <div className="min-h-[calc(100vh-48px)] px-6 py-8">
         <div className="max-w-xl mx-auto">
 
@@ -199,15 +213,25 @@ export default function Zapatoca() {
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setModal(true)}
-                  className="flex-shrink-0 text-xs transition-colors"
-                  style={{ color: 'rgba(0,196,212,0.8)' }}
-                  onMouseOver={e => e.currentTarget.style.color = '#00C4D4'}
-                  onMouseOut={e => e.currentTarget.style.color = 'rgba(0,196,212,0.8)'}
-                >
-                  ¿Cómo funciona?
-                </button>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <button
+                    onClick={() => setEditor(true)}
+                    className="text-white/50 hover:text-cyan-bright transition-colors text-lg leading-none"
+                    title="Editar lista de proveedores excluidos"
+                    aria-label="Editar lista de proveedores excluidos"
+                  >
+                    ⚙️
+                  </button>
+                  <button
+                    onClick={() => setModal(true)}
+                    className="text-xs transition-colors"
+                    style={{ color: 'rgba(0,196,212,0.8)' }}
+                    onMouseOver={e => e.currentTarget.style.color = '#00C4D4'}
+                    onMouseOut={e => e.currentTarget.style.color = 'rgba(0,196,212,0.8)'}
+                  >
+                    ¿Cómo funciona?
+                  </button>
+                </div>
               </div>
             </div>
 
