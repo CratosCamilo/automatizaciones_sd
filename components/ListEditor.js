@@ -26,7 +26,7 @@ export default function ListEditor({ name, title, subtitle, columns, onClose, on
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch(`/api/config?name=${encodeURIComponent(name)}`)
+        const res = await fetch(`/api/config?name=${encodeURIComponent(name)}&t=${Date.now()}`, { cache: 'no-store' })
         if (!res.ok) throw new Error(`GET falló (${res.status})`)
         const body = await res.json()
         if (cancelled) return

@@ -160,11 +160,14 @@ def _blob_base_url():
 
 
 def blob_get_json(pathname, default=None):
-    """GET público de un JSON del Blob. Devuelve `default` si falla."""
+    """GET público de un JSON del Blob. Devuelve `default` si falla.
+    Usa cache-buster (?t=<epoch_seg>) para evitar el edge cache de Vercel.
+    """
     base = _blob_base_url()
     if not base:
         return default
-    url = f'{base}/{pathname}'
+    import time
+    url = f'{base}/{pathname}?t={int(time.time())}'
     try:
         req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -174,7 +177,8 @@ def blob_get_json(pathname, default=None):
 
 
 def blob_put_json(pathname, data):
-    """PUT del JSON al Blob. Requiere BLOB_READ_WRITE_TOKEN."""
+    """PUT del JSON al Blob con cache TTL = 0 (sin edge cache).
+    Requiere BLOB_READ_WRITE_TOKEN."""
     token = os.environ.get('BLOB_READ_WRITE_TOKEN')
     if not token:
         raise RuntimeError('BLOB_READ_WRITE_TOKEN no está configurado')
@@ -184,9 +188,10 @@ def blob_put_json(pathname, data):
         data=body,
         method='PUT',
         headers={
-            'Authorization':      f'Bearer {token}',
-            'x-add-random-suffix': '0',
-            'x-content-type':      'application/json',
+            'Authorization':           f'Bearer {token}',
+            'x-add-random-suffix':      '0',
+            'x-content-type':           'application/json',
+            'x-cache-control-max-age':  '0',
         },
     )
     with urllib.request.urlopen(req, timeout=8) as resp:
